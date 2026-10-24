@@ -86,7 +86,7 @@ function commit(k, it, preRows) {
   writeNotes(k, rows)
   return rows.length
 }
-function cmdAdd(args, direct) {
+function cmdAdd(args) {
   const f = find(args[0])
   if (!f) return console.log('无此分区：' + S.folders.map(x => x.k + x.name).join(' '))
   if (!f.parent && S.folders.some(x => x.parent === f.k)) return console.log('主分区只放子分区，写到子分区里（如 ' + f.k + '>某子分区）')
@@ -95,12 +95,6 @@ function cmdAdd(args, direct) {
   if (len(t) > SOFTLEN) console.log(`偏长(${len(t)}字)，能短点更好`)
   const imp = /^\*/.test(t) ? '*' : ''
   const clean = t.replace(/^\*/, '')
-  if (direct) {
-    if (process.env.MEMTREE_ALLOW_DIRECT !== '1') return console.log('禁止绕过审批：先 add 进待审，主人采纳后才落盘')
-    const rows = readNotes(f.k)
-    if (rows.some(r => r.text === clean)) return console.log('已有')
-    return console.log('ok ' + f.k + ':' + commit(f.k, { flag: imp, text: clean }, rows))
-  }
   const p = readPending()
   if (p.some(x => x.k === f.k && x.text === clean)) return console.log('已在待审里')
   p.push({ id: shortId(), k: f.k, text: clean, flag: imp, ts: Date.now() })
@@ -253,6 +247,6 @@ function cmdInit() {
   console.log('init ok ' + HOME)
 }
 const [cmd, ...args] = process.argv.slice(2)
-const MAP = { idx: cmdIdx, open: cmdOpen, add: (a) => cmdAdd(a, false), 'add-now': (a) => cmdAdd(a, true), 'edit-mem': cmdEditMem, search: cmdSearch, pending: cmdPending, approve: cmdApprove, reject: cmdReject, edit: cmdEdit, done: cmdDone, rm: cmdRm, gc: cmdGc, mk: cmdMk, init: cmdInit }
+const MAP = { idx: cmdIdx, open: cmdOpen, add: (a) => cmdAdd(a, false), 'edit-mem': cmdEditMem, search: cmdSearch, pending: cmdPending, approve: cmdApprove, reject: cmdReject, edit: cmdEdit, done: cmdDone, rm: cmdRm, gc: cmdGc, mk: cmdMk, init: cmdInit }
 if (!MAP[cmd]) { console.log('用法: idx|open|add|add-now|pending|approve|reject|edit|done|rm|gc|mk|init'); process.exit(1) }
 MAP[cmd](args)

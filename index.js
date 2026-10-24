@@ -5,7 +5,7 @@
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, basename } from 'node:path'
-import { readFileSync, existsSync, readdirSync, mkdirSync, writeFileSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -68,6 +68,31 @@ function listDshWorkspaces() {
     out.push({ id, title: w.title || basename(w.path), path: w.path, bound: bound.has(String(w.path).toLowerCase()) })
   }
   return out
+}
+
+// 界面「自己写一条」：由插件直接落盘（命令行那边没有直写命令，模型只能走待审）
+function directAdd(scope, folderK, text) {
+  const home = homeOf(scope)
+  const folders = (readJson(join(home, 'folders.json'), {}) || {}).folders || []
+  let f = folders.find(x => x.k === folderK)
+  if (!f) {
+    const m = String(folderK).match(/^([A-Za-z0-9]+)>(.+)$/)
+    if (m) {
+      const p = folders.find(x => x.k === m[1] || x.name === m[1])
+      if (p) f = folders.find(x => x.parent === p.k && x.name === m[2].trim())
+    }
+  }
+  if (!f) return '无此分区'
+  if (!f.parent && folders.some(x => x.parent === f.k)) return '主分区只放子分区，写到子分区里'
+  let body = String(text || '').split(String.fromCharCode(13)).join(' ').split(String.fromCharCode(10)).join(' ').trim()
+  if (!body) return '空内容'
+  const flag = body.startsWith('*') ? '*' : ''
+  if (flag) body = body.slice(1).trim()
+  const dir = join(home, f.k)
+  mkdirSync(dir, { recursive: true })
+  const id = Math.random().toString(36).slice(2, 6)
+  appendFileSync(join(dir, 'notes.md'), id + '|' + Date.now() + '|' + flag + '|' + body + String.fromCharCode(10), 'utf8')
+  return 'ok ' + f.k
 }
 
 const readJson = (p, d) => { try { return JSON.parse(readFileSync(p, 'utf8')) } catch { return d } }
@@ -181,7 +206,7 @@ export function apply(ctx) {
         if (p === '/init') return json(res, 200, { ok: true, out: runIn(['init'], qs) })
         if (req.method === 'POST' && p === '/bind') { const b = await readBody(req); return json(res, 200, { ok: true, ...bindWorkspace(b.cwd) }) }
         if (req.method === 'POST' && p === '/mk') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['mk', String(b.name), ...(b.parent ? [String(b.parent)] : [])], b.scope || qs) }) }
-        if (req.method === 'POST' && p === '/add-now') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['add-now', String(b.folder), String(b.text)], b.scope || qs, { MEMTREE_ALLOW_DIRECT: '1' }) }) }
+        if (req.method === 'POST' && p === '/add-now') { const b = await readBody(req); return json(res, 200, { ok: true, out: directAdd(b.scope || qs, String(b.folder), String(b.text)) }) }
         if (req.method === 'POST' && p === '/edit-item') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['edit-mem', String(b.k), String(b.id), String(b.text)], b.scope || qs) }) }
         if (req.method === 'POST' && p === '/del-item') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['rm', String(b.k), String(b.id)], b.scope || qs) }) }
         if (req.method === 'POST' && p === '/approve') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['approve', String(b.id)], b.scope || qs) }) }
