@@ -1,6 +1,6 @@
 /**
  * DeepSeek 可塑性记忆 —— 浏览器半端
- * 设置页一页「可塑性记忆」+ 会话顶栏一个快捷浮层
+ * 设置里一页 + 会话顶栏一个入口；支持全局 / 各工作区 两套记忆
  */
 window.__ModuleLoader__.load({
   id: 'deepseek-plastic-memory',
@@ -8,8 +8,9 @@ window.__ModuleLoader__.load({
     const React = require('react')
     const h = React.createElement
     const API = '/api/plastic-memory'
-    const get = (p) => fetch(API + p).then((r) => r.json())
-    const postJson = (p, body) => fetch(API + p, {
+    const q = (scope) => '?scope=' + encodeURIComponent(scope || 'global')
+    const get = (p, scope) => fetch(API + p + (p.includes('?') ? '&' : q(scope))).then((r) => r.json())
+    const postJson = (p, body, scope) => fetch(API + p + q(scope), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body || {}),
@@ -17,7 +18,7 @@ window.__ModuleLoader__.load({
 
     const CSS = `
       .pm-root { display: flex; flex-direction: column; gap: 10px; }
-      .pm-card { border: 1px solid var(--dsw-border, #333); border-radius: 10px; overflow: hidden; background: var(--dsw-bg, transparent); }
+      .pm-card { border: 1px solid var(--dsw-border, #333); border-radius: 10px; overflow: hidden; }
       .pm-head { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; font-size: 13px; font-weight: 600; background: color-mix(in srgb, currentColor 6%, transparent); }
       .pm-badge { font-size: 11px; font-weight: 500; opacity: .7; margin-left: 6px; }
       .pm-row { display: flex; align-items: center; gap: 8px; padding: 6px 12px; font-size: 13px; border-top: 1px solid color-mix(in srgb, currentColor 10%, transparent); }
@@ -34,17 +35,25 @@ window.__ModuleLoader__.load({
       .pm-inp { flex: 1 1 auto; min-width: 0; }
       .pm-inp:focus, .pm-sel:focus { border-color: #4c8bf5; }
       .pm-msg { font-size: 11px; opacity: .55; padding: 0 12px 8px; }
-      .pm-tabs { display: flex; gap: 4px; padding: 8px 6px 0; flex-wrap: wrap; }
-      .pm-tab { border: none; background: transparent; color: inherit; font-size: 12px; padding: 4px 9px; border-radius: 999px; cursor: pointer; opacity: .6; }
-      .pm-tab:hover { opacity: .9; }
-      .pm-sub { margin-left: 12px; opacity: .9; }
-      .pm-tab.on { opacity: 1; background: color-mix(in srgb, currentColor 12%, transparent); font-weight: 600; }
+      .pm-scope { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid color-mix(in srgb, currentColor 10%, transparent); font-size: 12px; }
+      .pm-scope .pm-sel { padding: 3px 8px; font-size: 12px; }
+      .pm-tabs { display: flex; flex-direction: column; gap: 2px; padding: 8px 8px 4px; }
+      .pm-tab { border: none; background: transparent; color: inherit; font-size: 12.5px; padding: 5px 10px; border-radius: 7px; cursor: pointer; opacity: .7; text-align: left; display: flex; align-items: center; gap: 6px; }
+      .pm-tab:hover { opacity: 1; background: color-mix(in srgb, currentColor 6%, transparent); }
+      .pm-tab.on { opacity: 1; background: color-mix(in srgb, currentColor 11%, transparent); font-weight: 600; }
+      .pm-tab .pm-caret { width: 12px; opacity: .6; }
+      .pm-tab .pm-count { margin-left: auto; opacity: .45; font-size: 11px; }
+      .pm-kids { margin: 0 0 2px 20px; padding-left: 10px; border-left: 2px solid color-mix(in srgb, currentColor 16%, transparent); display: flex; flex-direction: column; gap: 1px; }
+      .pm-kids .pm-tab { font-size: 12px; opacity: .65; }
+      .pm-kids .pm-tab.on { opacity: 1; }
       .pm-list { padding: 4px 6px 8px; }
+      .pm-subname { opacity: .45; font-size: 11px; margin-right: 4px; }
     `
     function useCss() {
       React.useEffect(() => {
         const id = 'pm-style'
-        if (document.getElementById(id)) return
+        const old = document.getElementById(id)
+        if (old) old.remove()
         const s = document.createElement('style')
         s.id = id
         s.textContent = CSS
@@ -52,31 +61,34 @@ window.__ModuleLoader__.load({
       }, [])
     }
 
-    function PendingBox() {
+    function PendingBox({ scope, folders, onChanged }) {
       const [rows, setRows] = React.useState([])
-      const [folders, setFolders] = React.useState([])
       const [msg, setMsg] = React.useState('')
       const [form, setForm] = React.useState(false)
-      const [k, setK] = React.useState('M')
+      const [k, setK] = React.useState('')
       const [text, setText] = React.useState('')
       const [editing, setEditing] = React.useState(null)
       const load = React.useCallback(async () => {
-        try {
-          const [d, l] = await Promise.all([get('/pending'), get('/list')])
-          setRows(d.rows || [])
-          setFolders(l.folders || [])
-        } catch (e) { setMsg(String((e && e.message) || e)) }
-      }, [])
-      React.useEffect(() => { load() }, [load])
-      const act = async (api, body) => {
-        try { const r = await postJson(api, body); setMsg(r.out || 'ok'); await load(); setEditing(null) }
+        try { const d = await get('/pending', scope); setRows(d.rows || []) }
         catch (e) { setMsg(String((e && e.message) || e)) }
+      }, [scope])
+      React.useEffect(() => { load() }, [load])
+      React.useEffect(() => { if (!k && folders.length) setK(folders[0].k) }, [folders])
+      const act = async (api, body) => {
+        try {
+          const r = await postJson(api, body, scope)
+          setMsg(r.out || 'ok')
+          await load()
+          setEditing(null)
+          onChanged && onChanged()
+        } catch (e) { setMsg(String((e && e.message) || e)) }
       }
       const submit = async () => {
         const t = text.trim()
         if (!t) { setMsg('先写点啥'); return }
         await act('/add-now', { folder: k, text: t })
-        setText(''); setForm(false)
+        setText('')
+        setForm(false)
       }
       return h('div', { className: 'pm-card' },
         h('div', { className: 'pm-head' },
@@ -84,13 +96,9 @@ window.__ModuleLoader__.load({
           h('button', { className: 'pm-btn primary', onClick: () => setForm((v) => !v) }, form ? '收起' : '+ 记一条')),
         form ? h('div', { className: 'pm-form' },
           h('select', { className: 'pm-sel', value: k, onChange: (e) => setK(e.target.value) },
-            folders.map((f) => h('option', { key: f.k, value: f.k }, f.parent ? f.parent + ' > ' + f.name : f.k + ' ' + f.name))),
+            folders.map((f) => h('option', { key: f.k, value: f.k }, f.parent ? f.parent + ' › ' + f.name : f.k + ' ' + f.name))),
           h('input', {
-            className: 'pm-inp',
-            placeholder: '写点什么，30 字内',
-            value: text,
-            maxLength: 30,
-            autoFocus: true,
+            className: 'pm-inp', placeholder: '写点什么，30 字内', value: text, maxLength: 30, autoFocus: true,
             onChange: (e) => setText(e.target.value),
             onKeyDown: (e) => { if (e.key === 'Enter') submit() },
           }),
@@ -103,17 +111,13 @@ window.__ModuleLoader__.load({
               h('span', { className: 'pm-k' }, r.k),
               h('input', {
                 className: 'pm-inp', defaultValue: r.text, maxLength: 30, autoFocus: true,
-                onKeyDown: (e) => { if (e.key === 'Enter') act('/edit', { id: r.id, text: e.currentTarget.value }) },
-                onInput: (e) => { e.currentTarget.dataset.v = e.currentTarget.value },
                 id: 'pm-edit-' + r.id,
+                onKeyDown: (e) => { if (e.key === 'Enter') act('/edit', { id: r.id, text: e.currentTarget.value }) },
               }),
               h('button', { className: 'pm-btn', onClick: () => setEditing(null) }, '取消'),
               h('button', {
                 className: 'pm-btn primary',
-                onClick: () => {
-                  const el = document.getElementById('pm-edit-' + r.id)
-                  act('/edit', { id: r.id, text: el && el.value })
-                },
+                onClick: () => { const el = document.getElementById('pm-edit-' + r.id); act('/edit', { id: r.id, text: el && el.value }) },
               }, '存'))
             : h('div', { key: r.id, className: 'pm-row' },
               h('span', { className: 'pm-k' }, r.k),
@@ -124,39 +128,34 @@ window.__ModuleLoader__.load({
       )
     }
 
-    function Browser() {
-      const [folders, setFolders] = React.useState([])
-      const [cur, setCur] = React.useState('')
+    function Browser({ scope, folders, cur, setCur, reload }) {
       const [rows, setRows] = React.useState([])
       const [msg, setMsg] = React.useState('')
       const [expanded, setExpanded] = React.useState({})
       const [mkOpen, setMkOpen] = React.useState(false)
       const [mkName, setMkName] = React.useState('')
       const [mkParent, setMkParent] = React.useState('')
-      const load = React.useCallback(async (pick) => {
-        try {
-          const d = await get('/list')
-          setFolders(d.folders || [])
-          const key = pick || cur || ((d.folders && d.folders[0] && d.folders[0].k) || '')
-          if (key) { setCur(key); const o = await get('/open?k=' + encodeURIComponent(key)); setRows(o.rows || []) }
-        } catch (e) { setMsg(String((e && e.message) || e)) }
-      }, [cur])
-      React.useEffect(() => { load() }, [])
-      const gc = async () => {
-        try { const r = await postJson('/gc', {}); setMsg(r.out || 'ok'); await load(cur) }
-        catch (e) { setMsg(String((e && e.message) || e)) }
-      }
       const tops = folders.filter((f) => !f.parent)
       const subsOf = (k) => folders.filter((f) => f.parent === k)
+      const loadRows = React.useCallback(async (k) => {
+        if (!k) return
+        try { const o = await get('/open?k=' + encodeURIComponent(k), scope); setRows(o.rows || []) }
+        catch (e) { setMsg(String((e && e.message) || e)) }
+      }, [scope])
+      React.useEffect(() => { if (cur) loadRows(cur) }, [cur, loadRows])
+      const gc = async () => {
+        try { const r = await postJson('/gc', {}, scope); setMsg(r.out || 'ok'); reload && reload() }
+        catch (e) { setMsg(String((e && e.message) || e)) }
+      }
       const mkSubmit = async () => {
         const nm = mkName.trim()
         if (!nm) { setMsg('先起个名'); return }
         try {
-          const r = await postJson('/mk', { name: nm, parent: mkParent })
+          const r = await postJson('/mk', { name: nm, parent: mkParent }, scope)
           setMsg(r.out || 'ok')
           setMkName('')
           setMkOpen(false)
-          await load(mkParent || undefined)
+          reload && reload()
         } catch (e) { setMsg(String((e && e.message) || e)) }
       }
       return h('div', { className: 'pm-card', style: { flex: 1, minWidth: 0 } },
@@ -184,14 +183,21 @@ window.__ModuleLoader__.load({
                 className: 'pm-tab' + (cur === f.k ? ' on' : ''),
                 onClick: () => {
                   if (kids.length) setExpanded((e) => ({ ...e, [f.k]: !e[f.k] }))
-                  load(f.k)
+                  setCur(f.k)
                 },
-              }, (kids.length ? (open ? '▾ ' : '▸ ') : '') + f.k + ' ' + f.name + '  ' + f.n),
-              open ? kids.map((c) => h('button', {
-                key: c.k,
-                className: 'pm-tab pm-sub' + (cur === c.k ? ' on' : ''),
-                onClick: () => load(c.k),
-              }, '└ ' + c.name + '  ' + c.n)) : null)
+              },
+              h('span', { className: 'pm-caret' }, kids.length ? (open ? '▾' : '▸') : ''),
+              h('span', null, f.k + ' ' + f.name),
+              h('span', { className: 'pm-count' }, f.n)),
+              open && kids.length ? h('div', { className: 'pm-kids' },
+                kids.map((c) => h('button', {
+                  key: c.k,
+                  className: 'pm-tab' + (cur === c.k ? ' on' : ''),
+                  onClick: () => setCur(c.k),
+                },
+                h('span', { className: 'pm-subname' }, f.name + ' ›'),
+                h('span', null, c.name),
+                h('span', { className: 'pm-count' }, c.n)))) : null)
           })),
         msg ? h('div', { className: 'pm-msg' }, msg) : null,
         h('div', { className: 'pm-list' },
@@ -201,6 +207,54 @@ window.__ModuleLoader__.load({
               h('span', { className: 'pm-k' }, r.id),
               h('span', { className: 'pm-t', title: r.text }, (r.flag ? r.flag + ' ' : '') + r.text),
               h('span', { className: 'pm-k', style: { textAlign: 'right' } }, r.days + 'd')))))
+    }
+
+    function MemoryView() {
+      useCss()
+      const [scope, setScope] = React.useState('global')
+      const [scopes, setScopes] = React.useState([{ id: 'global', label: '全局' }])
+      const [folders, setFolders] = React.useState([])
+      const [cur, setCur] = React.useState('')
+      const [msg, setMsg] = React.useState('')
+      const [wsOpen, setWsOpen] = React.useState(false)
+      const [wsCwd, setWsCwd] = React.useState('')
+      const loadFolders = React.useCallback(async (s) => {
+        try {
+          const [sc, lf] = await Promise.all([get('/scopes'), get('/list', s || scope)])
+          setScopes(sc.scopes || [{ id: 'global', label: '全局' }])
+          const fs2 = (lf.folders || [])
+          setFolders(fs2)
+          if (!fs2.some((x) => x.k === cur)) setCur(fs2.length ? fs2[0].k : '')
+        } catch (e) { setMsg(String((e && e.message) || e)) }
+      }, [scope, cur])
+      React.useEffect(() => { loadFolders() }, [scope])
+      React.useEffect(() => { const t = setInterval(() => loadFolders(), 15000); return () => clearInterval(t) }, [scope])
+      const pickScope = (id) => { setScope(id); setCur(''); setFolders([]) }
+      const addWs = async () => {
+        const cwd = wsCwd.trim()
+        if (!cwd) { setMsg('填个工作区路径'); return }
+        try {
+          const r = await postJson('/bind', { cwd })
+          if (r.ok) { setMsg('已建 ' + r.label); setWsCwd(''); setWsOpen(false); await loadFolders() }
+          else setMsg(r.error || '失败')
+        } catch (e) { setMsg(String((e && e.message) || e)) }
+      }
+      return h('div', { className: 'pm-root' },
+        h('div', { className: 'pm-card' },
+          h('div', { className: 'pm-scope' },
+            h('span', { style: { opacity: .6 } }, '记忆库'),
+            h('select', {
+              className: 'pm-sel', value: scope,
+              onChange: (e) => pickScope(e.target.value),
+            }, scopes.map((s) => h('option', { key: s.id, value: s.id }, s.cwd ? s.label + '（' + s.cwd + '）' : s.label))),
+            h('button', { className: 'pm-btn', onClick: () => setWsOpen((v) => !v) }, '+ 工作区'),
+            msg ? h('span', { style: { opacity: .55, fontSize: 11 } }, msg) : null)),
+        wsOpen ? h('div', { className: 'pm-form' },
+          h('input', { className: 'pm-inp', placeholder: '工作区路径，如 C:/Users/xxx/proj', value: wsCwd, onChange: (e) => setWsCwd(e.target.value), onKeyDown: (e) => { if (e.key === 'Enter') addWs() } }),
+          h('button', { className: 'pm-btn primary', onClick: addWs }, '建记忆库')) : null,
+        h(PendingBox, { scope, folders, onChanged: loadFolders }),
+        h('div', { style: { display: 'flex', minHeight: 260 } },
+          h(Browser, { scope, folders, cur, setCur, reload: () => loadFolders() })))
     }
 
     function Overlay({ onClose }) {
@@ -220,7 +274,7 @@ window.__ModuleLoader__.load({
         onClick: (e) => e.stopPropagation(),
         style: {
           background: 'var(--dsw-bg, #1d1f23)', color: 'var(--dsw-fg, #e8e8e8)',
-          borderRadius: 14, padding: 14, width: 'min(720px, 94vw)', maxHeight: '72vh',
+          borderRadius: 14, padding: 14, width: 'min(760px, 94vw)', maxHeight: '80vh',
           overflow: 'auto', border: '1px solid var(--dsw-border, #35373c)',
           boxShadow: '0 18px 50px rgba(0,0,0,.55)',
         },
@@ -228,13 +282,10 @@ window.__ModuleLoader__.load({
       h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, padding: '0 2px' } },
         h('span', { style: { fontWeight: 600, fontSize: 14 } }, '可塑性记忆'),
         h('button', {
-          onClick: onClose,
-          className: 'pm-btn',
+          onClick: onClose, className: 'pm-btn',
           style: { width: 24, height: 24, padding: 0, borderRadius: 999, lineHeight: '20px', fontSize: 14 },
         }, '×')),
-      h('div', { className: 'pm-root' },
-        h(PendingBox, {}),
-        h(Browser, {}))))
+      h(MemoryView, {})))
     }
 
     function HeaderBtn() {
@@ -260,12 +311,11 @@ window.__ModuleLoader__.load({
 
     function Panel() {
       useCss()
-      return h('div', { className: 'pm-root', style: { maxWidth: 760, padding: '2px 0 12px' } },
-        h('div', null,
+      return h('div', { style: { maxWidth: 780, padding: '2px 0 12px' } },
+        h('div', { style: { marginBottom: 8 } },
           h('div', { style: { fontSize: 15, fontWeight: 600, marginBottom: 2 } }, '可塑性记忆'),
-          h('div', { style: { fontSize: 12, opacity: 0.6 } }, '分文件夹记事。7 天保留，7~30 天压缩，30 天进回收站；主人和约定不删。')),
-        h(PendingBox, {}),
-        h('div', { style: { display: 'flex', minHeight: 260 } }, h(Browser, {})))
+          h('div', { style: { fontSize: 12, opacity: 0.6 } }, '分文件夹记事。7 天保留，7~30 天压缩，30 天进回收站；主人和约定不删。全局库和每个工作区各有一份。')),
+        h(MemoryView, {}))
     }
 
     return {

@@ -1,56 +1,98 @@
 /**
  * DeepSeek 可塑性记忆 —— DSH 插件入口
- * 1) 把 memtree.mjs 的命令注册成 DSH 工具
- * 2) 给设置页/顶部栏提供只读浏览接口 /api/plastic-memory/*
+ * 支持两级作用域：全局库 + 每个工作区各一份
  */
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
-import { readFileSync, existsSync } from 'node:fs'
+import { dirname, join, basename } from 'node:path'
+import { readFileSync, existsSync, readdirSync, mkdirSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SCRIPT = join(HERE, 'memtree.mjs')
+const DSH_HOME = process.env.USERPROFILE || process.env.HOME || '.'
+const ROOT = join(DSH_HOME, '.dsh', 'plastic-memory')
+const WS_ROOT = join(ROOT, 'ws')
 
 export const name = 'plastic-memory'
 export const inject = ['tools', 'webServer']
 
-const run = (args) => {
-  const r = spawnSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf8', windowsHide: true })
+const slugOf = (cwd) => {
+  const h = createHash('md5').update(String(cwd)).digest('hex').slice(0, 8)
+  const base = String(cwd).replace(/[\/]+$/, '').split(/[\/]/).pop() || 'ws'
+  return base.replace(/[^A-Za-z0-9_-]/g, '') + '-' + h
+}
+const homeOf = (scope) => {
+  if (!scope || scope === 'global') return ROOT
+  const slug = String(scope).replace(/^ws:/, '')
+  return join(WS_ROOT, slug)
+}
+const runIn = (args, scope) => {
+  const env = { ...process.env, MEMTREE_HOME: homeOf(scope) }
+  const r = spawnSync(process.execPath, [SCRIPT, ...args], { encoding: 'utf8', env, windowsHide: true })
   return ((r.stdout || '') + (r.stderr || '')).trim() || '(空)'
 }
-const str = { type: 'string' }
-const obj = (props, required = []) => ({ type: 'object', properties: props, required, additionalProperties: false })
+const run = (args) => runIn(args, 'global')
 
-// ---------- 记忆库读取（给 UI 用，纯只读 + gc） ----------
+function listScopes() {
+  const out = [{ id: 'global', label: '全局', home: ROOT }]
+  try {
+    for (const d of readdirSync(WS_ROOT, { withFileTypes: true })) {
+      if (!d.isDirectory()) continue
+      const metaPath = join(WS_ROOT, d.name, 'meta.json')
+      let meta = {}
+      try { meta = JSON.parse(readFileSync(metaPath, 'utf8')) } catch {}
+      out.push({ id: 'ws:' + d.name, label: meta.name || d.name, cwd: meta.cwd || '', home: join(WS_ROOT, d.name) })
+    }
+  } catch {}
+  return out
+}
 
-function listFolders() {
-  const home = process.env.MEMTREE_HOME || join(process.env.USERPROFILE || process.env.HOME || '.', '.dsh', 'plastic-memory')
+function bindWorkspace(cwd) {
+  if (!cwd) return { ok: false, error: 'no cwd' }
+  const slug = slugOf(cwd)
+  const dir = join(WS_ROOT, slug)
+  mkdirSync(dir, { recursive: true })
+  const meta = { cwd: String(cwd), name: basename(String(cwd)) }
+  writeFileSync(join(dir, 'meta.json'), JSON.stringify(meta, null, 1), 'utf8')
+  return { ok: true, id: 'ws:' + slug, label: meta.name }
+}
+
+const readJson = (p, d) => { try { return JSON.parse(readFileSync(p, 'utf8')) } catch { return d } }
+
+function listFolders(scope) {
+  const home = homeOf(scope)
+  const folders = (readJson(join(home, 'folders.json'), {}) || {}).folders || []
   const out = []
-  const f = join(home, 'folders.json')
-  let folders = []
-  try { folders = JSON.parse(readFileSync(f, 'utf8')).folders || [] } catch {}
   for (const x of folders) {
     let n = 0
     const p = join(home, x.k, 'notes.md')
     if (existsSync(p)) n = readFileSync(p, 'utf8').split('\n').filter(Boolean).length
     out.push({ k: x.k, name: x.name, n, parent: x.parent || '' })
   }
-  return { home, folders: out }
+  return { home, scope: scope || 'global', folders: out }
 }
 
-function openFolder(k) {
-  const { home, folders } = listFolders()
+function openFolder(scope, k) {
+  const home = homeOf(scope)
+  const { folders } = listFolders(scope)
   const meta = folders.find(x => x.k === k)
   if (!meta) return { ok: false, error: 'no such folder' }
   const p = join(home, k, 'notes.md')
   const rows = existsSync(p) ? readFileSync(p, 'utf8').split('\n').filter(Boolean).map((l) => {
-    const [id, ts, flag, ...rest] = l.split('|')
-    return { id, days: Math.floor((Date.now() - Number(ts)) / 864e5), flag: flag || '', text: rest.join('|') }
+    const [id, ts, ...rest] = l.split('|')
+    const flag = rest.length > 1 ? rest[0] : ''
+    const text = rest.length > 1 ? rest.slice(1).join('|') : rest.join('|')
+    return { id, days: Math.floor((Date.now() - Number(ts)) / 864e5), flag, text }
   }) : []
   return { ok: true, folder: meta, rows }
 }
 
-// 宿主 tools.register 要求每个工具声明 output（schema + render），否则插件整个不激活
+function readPendingList(scope) {
+  const a = readJson(join(homeOf(scope), '_pending.json'), [])
+  return Array.isArray(a) ? a : []
+}
+
 const textOutput = {
   schema: { type: 'object', properties: {}, additionalProperties: true },
   render: (_args, value) => [{
@@ -58,28 +100,29 @@ const textOutput = {
     text: typeof value === 'string' ? value : JSON.stringify(value, null, 2),
   }],
 }
+const str = { type: 'string' }
+const obj = (props, required = []) => ({ type: 'object', properties: props, required, additionalProperties: false })
 
 export function apply(ctx) {
-  // ---- DSH 工具 ----
   ctx.tools.register({
     name: 'plastic_memory_idx',
-    description: '可塑性记忆：一行索引，列出所有分区和条数（M主人:3 P约定:1 ...）。看这个再决定翻哪个分区，别整库乱翻。',
+    description: '可塑性记忆：一行索引，列出所有分区和条数（M主人:3 P约定:1 ...）。看这个再决定翻哪个分区。',
     parameters: obj({}),
     output: textOutput,
     async execute() { return run(['idx']) },
   })
   ctx.tools.register({
     name: 'plastic_memory_open',
-    description: '可塑性记忆：翻一个分区，返回条目（id 天数 标记 内容）。分区代号：M主人 P约定 C续缘 R喜好 T时间线 X<n>自定义。',
-    parameters: obj({ folder: { ...str, description: '分区代号，如 M / P / C' } }, ['folder']),
+    description: '可塑性记忆：翻一个分区，返回条目。分区代号：M主人 P约定 C续缘 R喜好 T时间线 X<n>；子分区写成 M>行为。',
+    parameters: obj({ folder: { ...str, description: '分区代号，如 M 或 M>行为' } }, ['folder']),
     output: textOutput,
     async execute(a) { return run(['open', String(a.folder)]) },
   })
   ctx.tools.register({
     name: 'plastic_memory_add',
-    description: '可塑性记忆：把一条记忆放进待审批队列——主人会在设置里看到，能改、能驳回、能采纳。单条不超过 30 个字，开头加 * 表示重要。禁止记密码、token、密钥。',
+    description: '可塑性记忆：把一条记忆放进待审批队列（主人会看到，能改能驳能采纳）。单条 ≤30 字，开头加 * 表示重要。看到主人的新习惯、情绪模式、口头禅、作息变化，都可以主动记一条。禁止记密码、token、密钥。',
     parameters: obj({
-      folder: { ...str, description: '分区代号，如 M / P / C' },
+      folder: { ...str, description: '分区代号，如 M、M>行为、R、T' },
       text: { ...str, description: '要记的内容，≤30 字' },
     }, ['folder', 'text']),
     output: textOutput,
@@ -87,29 +130,23 @@ export function apply(ctx) {
   })
   ctx.tools.register({
     name: 'plastic_memory_pending',
-    description: '可塑性记忆：看待审批队列——主人还没采纳的记忆都在这里。',
+    description: '可塑性记忆：看待审批队列——主人还没采纳的记忆。',
     parameters: obj({}),
     output: textOutput,
     async execute() { return run(['pending']) },
   })
   ctx.tools.register({
     name: 'plastic_memory_gc',
-    description: '可塑性记忆：跑一次遗忘曲线——7 天内的保留，7~30 天压缩只留重要的，30 天后的进回收站；主人信息和约定不删。',
+    description: '可塑性记忆：跑一次遗忘曲线——7 天保留、7~30 天压缩、30 天进回收站；主人和约定不删。',
     parameters: obj({}),
     output: textOutput,
     async execute() { return run(['gc']) },
   })
 
-  // ---- 给设置页 / 顶部栏用的只读接口 ----
   const json = (res, code, body) => {
     res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' })
     res.end(JSON.stringify(body))
   }
-function readPendingList() {
-  const home = process.env.MEMTREE_HOME || join(process.env.USERPROFILE || process.env.HOME || '.', '.dsh', 'plastic-memory')
-  try { const a = JSON.parse(readFileSync(join(home, '_pending.json'), 'utf8')); return Array.isArray(a) ? a : [] } catch { return [] }
-}
-
   const readBody = (req) => new Promise((resolve) => {
     let s = ''
     req.on('data', (c) => { s += c; if (s.length > 1e6) req.destroy() })
@@ -121,17 +158,20 @@ function readPendingList() {
     handler: async (req, res) => {
       const u = new URL(req.url, 'http://127.0.0.1')
       const p = u.pathname.replace(/^\/api\/plastic-memory/, '')
+      const qs = u.searchParams.get('scope') || 'global'
       try {
-        if (p === '/list') return json(res, 200, { ok: true, ...listFolders() })
-        if (p === '/open') return json(res, 200, openFolder(u.searchParams.get('k') || ''))
-        if (p === '/gc') return json(res, 200, { ok: true, out: run(['gc']) })
-        if (p === '/init') return json(res, 200, { ok: true, out: run(['init']) })
-        if (p === '/pending') return json(res, 200, { ok: true, rows: readPendingList() })
-        if (req.method === 'POST' && p === '/approve') { const b = await readBody(req); return json(res, 200, { ok: true, out: run(['approve', String(b.id)]) }) }
-        if (req.method === 'POST' && p === '/reject') { const b = await readBody(req); return json(res, 200, { ok: true, out: run(['reject', String(b.id)]) }) }
-        if (req.method === 'POST' && p === '/edit') { const b = await readBody(req); return json(res, 200, { ok: true, out: run(['edit', String(b.id), String(b.text)]) }) }
-        if (req.method === 'POST' && p === '/mk') { const b = await readBody(req); return json(res, 200, { ok: true, out: run(['mk', String(b.name), ...(b.parent ? [String(b.parent)] : [])]) }) }
-        if (req.method === 'POST' && p === '/add-now') { const b = await readBody(req); return json(res, 200, { ok: true, out: run(['add-now', String(b.folder), String(b.text)]) }) }
+        if (p === '/scopes') return json(res, 200, { ok: true, scopes: listScopes() })
+        if (p === '/list') return json(res, 200, { ok: true, ...listFolders(qs) })
+        if (p === '/open') return json(res, 200, openFolder(qs, u.searchParams.get('k') || ''))
+        if (p === '/pending') return json(res, 200, { ok: true, rows: readPendingList(qs) })
+        if (p === '/gc') return json(res, 200, { ok: true, out: runIn(['gc'], qs) })
+        if (p === '/init') return json(res, 200, { ok: true, out: runIn(['init'], qs) })
+        if (req.method === 'POST' && p === '/bind') { const b = await readBody(req); return json(res, 200, { ok: true, ...bindWorkspace(b.cwd) }) }
+        if (req.method === 'POST' && p === '/mk') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['mk', String(b.name), ...(b.parent ? [String(b.parent)] : [])], b.scope || qs) }) }
+        if (req.method === 'POST' && p === '/add-now') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['add-now', String(b.folder), String(b.text)], b.scope || qs) }) }
+        if (req.method === 'POST' && p === '/approve') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['approve', String(b.id)], b.scope || qs) }) }
+        if (req.method === 'POST' && p === '/reject') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['reject', String(b.id)], b.scope || qs) }) }
+        if (req.method === 'POST' && p === '/edit') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['edit', String(b.id), String(b.text)], b.scope || qs) }) }
         return json(res, 404, { ok: false, error: 'unknown' })
       } catch (e) {
         return json(res, 500, { ok: false, error: e?.message || String(e) })
