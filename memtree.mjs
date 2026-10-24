@@ -5,6 +5,8 @@ import path from 'node:path'
 const HOME = process.env.MEMTREE_HOME || path.join(process.env.USERPROFILE || process.env.HOME || '.', '.dsh', 'plastic-memory')
 const TRASH = path.join(HOME, '_trash')
 const MAX_FOLDERS = 15
+const BACKUPS = path.join(HOME, '_backups')
+const KEEP_BACKUPS = 10
 const SOFTLEN = 60 // 只是提示，不拦
 const DAY = 864e5
 // 内置分区：M 主人(禁删) P 约定(禁删) C 续缘 R 喜好 T 时间线
@@ -219,7 +221,68 @@ function ruleOf(f) {
   if (f.parent) return RULES[f.parent] || RULES.X
   return RULES[f.k] || RULES[f.k[0]] || RULES.X
 }
+function pruneBackups(keep = KEEP_BACKUPS) {
+  if (!fs.existsSync(BACKUPS)) return
+  const dirs = fs.readdirSync(BACKUPS).filter(d => {
+    try { return fs.statSync(path.join(BACKUPS, d)).isDirectory() } catch { return false }
+  }).sort()
+  while (dirs.length > keep) fs.rmSync(path.join(BACKUPS, dirs.shift()), { recursive: true, force: true })
+}
+function snapshot(tag = 'gc') {
+  const stamp = new Date().toISOString().replace(/[:]/g, '-').slice(0, 19)
+  const name = tag + '-' + stamp
+  const dir = path.join(BACKUPS, name)
+  fs.mkdirSync(dir, { recursive: true })
+  const counts = {}
+  for (const f of S.folders) {
+    counts[f.k] = readNotes(f.k).length
+    const src = fileOf(f.k)
+    if (!fs.existsSync(src)) continue
+    fs.mkdirSync(path.join(dir, f.k), { recursive: true })
+    fs.copyFileSync(src, path.join(dir, f.k, 'notes.md'))
+  }
+  fs.writeFileSync(path.join(dir, 'folders.json'), JSON.stringify(S, null, 1))
+  fs.writeFileSync(path.join(dir, 'meta.json'), JSON.stringify({ name, tag, at: Date.now(), counts }, null, 1))
+  pruneBackups()
+  return name
+}
+function cmdBackups() {
+  if (!fs.existsSync(BACKUPS)) return console.log('还没有备份')
+  const dirs = fs.readdirSync(BACKUPS).sort().reverse()
+  if (!dirs.length) return console.log('还没有备份')
+  for (const d of dirs) {
+    let m = null
+    try { m = JSON.parse(fs.readFileSync(path.join(BACKUPS, d, 'meta.json'), 'utf8')) } catch {}
+    const total = m ? Object.values(m.counts || {}).reduce((a, b) => a + b, 0) : '?'
+    console.log(d + '  ' + total + ' 条  ' + (m ? new Date(m.at).toLocaleString('zh-CN') : ''))
+  }
+}
+function cmdRestore(args) {
+  if (!fs.existsSync(BACKUPS)) return console.log('还没有备份')
+  const want = txt(args[0] || '')
+  const pick = want || (fs.readdirSync(BACKUPS).sort().reverse()[0] || '')
+  if (!pick) return console.log('还没有备份')
+  const dir = path.join(BACKUPS, pick)
+  if (!fs.existsSync(dir)) return console.log('没有这个备份: ' + pick)
+  let bk
+  try { bk = JSON.parse(fs.readFileSync(path.join(dir, 'folders.json'), 'utf8')) } catch { return console.log('这个备份坏了: ' + pick) }
+  const guard = snapshot('pre-restore') // 恢复前把当前状态也存一份，反悔还有退路
+  for (const f of S.folders) {
+    const p = fileOf(f.k)
+    if (fs.existsSync(p)) fs.rmSync(p)
+  }
+  fs.writeFileSync(NF(), JSON.stringify(bk, null, 1))
+  for (const f of (bk.folders || [])) {
+    const src = path.join(dir, f.k, 'notes.md')
+    if (!fs.existsSync(src)) continue
+    fs.mkdirSync(dirOf(f.k), { recursive: true })
+    fs.copyFileSync(src, fileOf(f.k))
+  }
+  console.log('restore ok ' + pick)
+  console.log('恢复前的状态也存了一份: ' + guard)
+}
 function cmdGc() {
+  const bk = snapshot('gc') // 先备份，再跑
   const now = Date.now()
   let gone = 0, kept = 0
   for (const f of S.folders) {
@@ -241,7 +304,15 @@ function cmdGc() {
     }
     writeNotes(f.k, out)
   }
+  if (!gone) {
+    fs.rmSync(path.join(BACKUPS, bk), { recursive: true, force: true })
+    console.log(`gc kept:${kept} trash:0`)
+    console.log('没有东西要清，这次不留备份')
+    return
+  }
   console.log(`gc kept:${kept} trash:${gone}`)
+  console.log('备份: ' + bk)
+  console.log('不满意就还原: restore ' + bk)
 }
 function cmdMk(args) {
   const name = txt(args[0] || '')
@@ -272,6 +343,6 @@ function cmdInit() {
   console.log('init ok ' + HOME)
 }
 const [cmd, ...args] = process.argv.slice(2)
-const MAP = { idx: cmdIdx, open: cmdOpen, add: (a) => cmdAdd(a, false), 'edit-mem': cmdEditMem, search: cmdSearch, tlog: cmdTLog, pending: cmdPending, approve: cmdApprove, reject: cmdReject, edit: cmdEdit, done: cmdDone, rm: cmdRm, gc: cmdGc, mk: cmdMk, init: cmdInit }
-if (!MAP[cmd]) { console.log('用法: idx|open|add|pending|approve|reject|edit|done|rm|gc|mk|init'); process.exit(1) }
+const MAP = { idx: cmdIdx, open: cmdOpen, add: (a) => cmdAdd(a, false), 'edit-mem': cmdEditMem, search: cmdSearch, tlog: cmdTLog, pending: cmdPending, approve: cmdApprove, reject: cmdReject, edit: cmdEdit, done: cmdDone, rm: cmdRm, gc: cmdGc, mk: cmdMk, init: cmdInit, backups: cmdBackups, restore: cmdRestore }
+if (!MAP[cmd]) { console.log('用法: idx|open|add|pending|approve|reject|edit|done|rm|gc|backups|restore|mk|init'); process.exit(1) }
 MAP[cmd](args)

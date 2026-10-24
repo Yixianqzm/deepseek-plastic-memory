@@ -136,6 +136,7 @@ window.__ModuleLoader__.load({
       const [mkOpen, setMkOpen] = React.useState(false)
       const [mkName, setMkName] = React.useState('')
       const [mkParent, setMkParent] = React.useState('')
+      const [lastBk, setLastBk] = React.useState('')
       const tops = folders.filter((f) => !f.parent)
       const subsOf = (k) => folders.filter((f) => f.parent === k)
       const loadRows = React.useCallback(async (k) => {
@@ -149,8 +150,24 @@ window.__ModuleLoader__.load({
         catch (e) { setMsg(String((e && e.message) || e)) }
       }
       const gc = async () => {
-        try { const r = await postJson('/gc', {}, scope); setMsg(r.out || 'ok'); reload && reload() }
-        catch (e) { setMsg(String((e && e.message) || e)) }
+        try {
+          const r = await postJson('/gc', {}, scope)
+          const out = String(r.out || 'ok')
+          setMsg(out)
+          const m = /备份:s*(S+)/.exec(out)
+          setLastBk(m ? m[1] : '')
+          await loadRows(cur)
+          reload && reload()
+        } catch (e) { setMsg(String((e && e.message) || e)) }
+      }
+      const undoGc = async () => {
+        try {
+          const r = await postJson('/restore', { name: lastBk, scope }, scope)
+          setMsg(String(r.out || 'ok'))
+          setLastBk('')
+          await loadRows(cur)
+          reload && reload()
+        } catch (e) { setMsg(String((e && e.message) || e)) }
       }
       const mkSubmit = async () => {
         const nm = mkName.trim()
@@ -168,7 +185,8 @@ window.__ModuleLoader__.load({
           h('span', null, '记忆'),
           h('span', { style: { display: 'flex', gap: 6 } },
             h('button', { className: 'pm-btn', onClick: () => setMkOpen((v) => !v) }, '+ 分区'),
-            h('button', { className: 'pm-btn', onClick: gc }, '跑遗忘曲线'))),
+            h('button', { className: 'pm-btn', onClick: gc }, '跑遗忘曲线'),
+            lastBk ? h('button', { className: 'pm-btn', onClick: undoGc }, '撤销清理') : null)),
         mkOpen ? h('div', { className: 'pm-form' },
           h('select', { className: 'pm-sel', value: mkParent, onChange: (e) => setMkParent(e.target.value) },
             h('option', { value: '' }, '— 新建主分区 —'),

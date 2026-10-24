@@ -195,10 +195,24 @@ export function apply(ctx) {
   })
   ctx.tools.register({
     name: 'plastic_memory_gc',
-    description: '可塑性记忆：跑一次遗忘曲线——7 天保留、7~30 天压缩、30 天进回收站；主人和约定不删。',
+    description: '可塑性记忆：跑一次遗忘曲线——7 天保留、7~30 天压缩、30 天进回收站；主人和约定不删。跑之前会自动把当前记忆备份一份，跑完主人后悔了可以用 plastic_memory_restore 回到备份。',
     parameters: obj({}),
     output: textOutput,
     async execute() { return asText(run(['gc'])) },
+  })
+  ctx.tools.register({
+    name: 'plastic_memory_restore',
+    description: '可塑性记忆：把记忆恢复到某次备份（不填名字就用最近一次）。恢复前会把当前状态也存一份，反悔还有退路。只有主人明确说要用备份/撤销清理时才调。',
+    parameters: obj({ name: { ...str, description: '备份名字，不填=最近一次' } }),
+    output: textOutput,
+    async execute(a) { return asText(run(['restore', ...(a.name ? [String(a.name)] : [])])) },
+  })
+  ctx.tools.register({
+    name: 'plastic_memory_backups',
+    description: '可塑性记忆：列出已有的备份（时间 + 条数），配合 plastic_memory_restore 用。',
+    parameters: obj({}),
+    output: textOutput,
+    async execute() { return asText(run(['backups'])) },
   })
 
   const json = (res, code, body) => {
@@ -225,8 +239,10 @@ export function apply(ctx) {
         if (p === '/search') return json(res, 200, { ok: true, out: runIn(['search', u.searchParams.get('q') || ''], qs) })
         if (p === '/pending') return json(res, 200, { ok: true, rows: readPendingList(qs) })
         if (p === '/gc') return json(res, 200, { ok: true, out: runIn(['gc'], qs) })
+        if (p === '/backups') return json(res, 200, { ok: true, out: runIn(['backups'], qs) })
         if (p === '/init') return json(res, 200, { ok: true, out: runIn(['init'], qs) })
         if (req.method === 'POST' && p === '/bind') { const b = await readBody(req); return json(res, 200, { ok: true, ...bindWorkspace(b.cwd) }) }
+        if (req.method === 'POST' && p === '/restore') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['restore', ...(b.name ? [String(b.name)] : [])], b.scope || qs) }) }
         if (req.method === 'POST' && p === '/mk') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['mk', String(b.name), ...(b.parent ? [String(b.parent)] : [])], b.scope || qs) }) }
         if (req.method === 'POST' && p === '/add-now') { const b = await readBody(req); return json(res, 200, { ok: true, out: directAdd(b.scope || qs, String(b.folder), String(b.text)) }) }
         if (req.method === 'POST' && p === '/edit-item') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['edit-mem', String(b.k), String(b.id), String(b.text)], b.scope || qs) }) }
