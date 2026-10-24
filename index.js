@@ -106,7 +106,7 @@ function readPendingList(scope) {
 }
 
 const textOutput = {
-  schema: { type: 'object', properties: {}, additionalProperties: true },
+  schema: { type: 'string' },
   render: (_args, value) => [{
     type: 'text',
     text: typeof value === 'string' ? value : JSON.stringify(value, null, 2),
