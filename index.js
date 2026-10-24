@@ -87,8 +87,7 @@ function listFolders(scope) {
 
 function openFolder(scope, k) {
   const home = homeOf(scope)
-  const { folders } = listFolders(scope)
-  const meta = folders.find(x => x.k === k)
+  const meta = ((readJson(join(home, 'folders.json'), {}) || {}).folders || []).find(x => x.k === k)
   if (!meta) return { ok: false, error: 'no such folder' }
   const p = join(home, k, 'notes.md')
   const rows = existsSync(p) ? readFileSync(p, 'utf8').split('\n').filter(Boolean).map((l) => {

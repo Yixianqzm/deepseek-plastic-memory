@@ -80,8 +80,8 @@ function writePending(a) {
   fs.mkdirSync(HOME, { recursive: true })
   fs.writeFileSync(PF(), JSON.stringify(a, null, 1))
 }
-function commit(k, it) {
-  const rows = readNotes(k)
+function commit(k, it, preRows) {
+  const rows = preRows || readNotes(k)
   rows.push({ id: it.id || shortId(), ts: it.ts || Date.now(), flag: it.flag || '', text: it.text })
   writeNotes(k, rows)
   return rows.length
@@ -97,8 +97,9 @@ function cmdAdd(args, direct) {
   const clean = t.replace(/^\*/, '')
   if (direct) {
     if (process.env.MEMTREE_ALLOW_DIRECT !== '1') return console.log('禁止绕过审批：先 add 进待审，主人采纳后才落盘')
-    if (readNotes(f.k).some(r => r.text === clean)) return console.log('已有')
-    return console.log('ok ' + f.k + ':' + commit(f.k, { flag: imp, text: clean }))
+    const rows = readNotes(f.k)
+    if (rows.some(r => r.text === clean)) return console.log('已有')
+    return console.log('ok ' + f.k + ':' + commit(f.k, { flag: imp, text: clean }, rows))
   }
   const p = readPending()
   if (p.some(x => x.k === f.k && x.text === clean)) return console.log('已在待审里')

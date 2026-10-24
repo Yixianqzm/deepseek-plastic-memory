@@ -239,18 +239,21 @@ window.__ModuleLoader__.load({
       const [wsOpen, setWsOpen] = React.useState(false)
       const [wsCwd, setWsCwd] = React.useState('')
       const [workspaces, setWorkspaces] = React.useState([])
+      const loadScopes = React.useCallback(async () => {
+        try { const sc = await get('/scopes'); setScopes(sc.scopes || [{ id: 'global', label: '全局' }]) } catch {}
+      }, [])
       const loadFolders = React.useCallback(async (s) => {
         try {
-          const [sc, lf] = await Promise.all([get('/scopes'), get('/list', s || scope)])
-          setScopes(sc.scopes || [{ id: 'global', label: '全局' }])
+          const lf = await get('/list', s || scope)
           const fs2 = (lf.folders || [])
           setFolders(fs2)
           if (!fs2.some((x) => x.k === cur)) setCur(fs2.length ? fs2[0].k : '')
         } catch (e) { setMsg(String((e && e.message) || e)) }
       }, [scope, cur])
+      React.useEffect(() => { loadScopes() }, [wsOpen, loadScopes])
       React.useEffect(() => { loadFolders() }, [scope])
       React.useEffect(() => { get('/workspaces').then((d) => setWorkspaces(d.workspaces || [])).catch(() => {}) }, [wsOpen])
-      React.useEffect(() => { const t = setInterval(() => loadFolders(), 15000); return () => clearInterval(t) }, [scope])
+
       const pickScope = (id) => { setScope(id); setCur(''); setFolders([]) }
       const addWs = async () => {
         const cwd = wsCwd.trim()
@@ -334,7 +337,6 @@ window.__ModuleLoader__.load({
     }
 
     function Panel() {
-      useCss()
       return h('div', { style: { maxWidth: 780, padding: '2px 0 12px' } },
         h('div', { style: { marginBottom: 8 } },
           h('div', { style: { fontSize: 15, fontWeight: 600, marginBottom: 2 } }, '可塑性记忆'),
