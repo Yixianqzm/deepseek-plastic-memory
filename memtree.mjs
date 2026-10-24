@@ -179,7 +179,7 @@ function cmdRm(args) {
   const rows = readNotes(f.k)
   const i = rows.findIndex(x => x.id === args[1])
   if (i < 0) return console.log('无此条')
-  if (f.guard) return console.log('该分区禁删，只能标记完成或改内容')
+  if (f.guard && args[2] !== 'force') return console.log('该分区默认禁删，界面手动删要带 force')
   trash(f.k, rows[i], 'manual')
   rows.splice(i, 1)
   writeNotes(f.k, rows)
