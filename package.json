@@ -1,0 +1,24 @@
+{
+  "name": "deepseek-plastic-memory",
+  "version": "1.1.0",
+  "description": "DeepSeek 可塑性记忆：给 DSH 用的分区式长期记忆，带遗忘曲线",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "bin": { "plastic-memory": "./memtree.mjs" },
+  "files": ["index.js", "client.js", "memtree.mjs", "cordis.patch.yml", "SKILL.md", "README.md", "LICENSE"],
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "inject": ["@deepseek-ai/dsh-client-runtime", "@deepseek-ai/dsh-client-ui-settings"]
+    }
+  },
+  "keywords": ["dsh", "dsh-plugin", "deepseek-harness", "memory", "agent", "skill"],
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/Yixianqzm/deepseek-plastic-memory.git" }
+}

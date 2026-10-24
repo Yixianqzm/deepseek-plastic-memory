@@ -1,0 +1,5 @@
+# DeepSeek 可塑性记忆：DSH 插件挂载声明
+- insert:
+    - id: plastic-memory
+      name: deepseek-plastic-memory
+      config: {}
