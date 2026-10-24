@@ -105,6 +105,17 @@ function cmdAdd(args, direct) {
   writePending(p)
   console.log('待审 ' + p.length)
 }
+function cmdEditMem(args) {
+  const f = find(args[0]); if (!f) return console.log('无此分区')
+  const rows = readNotes(f.k)
+  const r = rows.find(x => x.id === args[1]); if (!r) return console.log('无此条')
+  const t = txt(args.slice(2).join(' '))
+  if (!t) return console.log('空内容')
+  if (len(t) > MAXLEN) return console.log(`太长(${len(t)}字)`)
+  r.text = t
+  writeNotes(f.k, rows)
+  console.log('改好了')
+}
 function cmdPending() {
   const p = readPending()
   if (!p.length) return console.log('空')
@@ -227,6 +238,6 @@ function cmdInit() {
   console.log('init ok ' + HOME)
 }
 const [cmd, ...args] = process.argv.slice(2)
-const MAP = { idx: cmdIdx, open: cmdOpen, add: (a) => cmdAdd(a, false), 'add-now': (a) => cmdAdd(a, true), pending: cmdPending, approve: cmdApprove, reject: cmdReject, edit: cmdEdit, done: cmdDone, rm: cmdRm, gc: cmdGc, mk: cmdMk, init: cmdInit }
+const MAP = { idx: cmdIdx, open: cmdOpen, add: (a) => cmdAdd(a, false), 'add-now': (a) => cmdAdd(a, true), 'edit-mem': cmdEditMem, pending: cmdPending, approve: cmdApprove, reject: cmdReject, edit: cmdEdit, done: cmdDone, rm: cmdRm, gc: cmdGc, mk: cmdMk, init: cmdInit }
 if (!MAP[cmd]) { console.log('用法: idx|open|add|add-now|pending|approve|reject|edit|done|rm|gc|mk|init'); process.exit(1) }
 MAP[cmd](args)

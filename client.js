@@ -132,6 +132,7 @@ window.__ModuleLoader__.load({
       const [rows, setRows] = React.useState([])
       const [msg, setMsg] = React.useState('')
       const [expanded, setExpanded] = React.useState({})
+      const [editingItem, setEditingItem] = React.useState(null)
       const [mkOpen, setMkOpen] = React.useState(false)
       const [mkName, setMkName] = React.useState('')
       const [mkParent, setMkParent] = React.useState('')
@@ -143,6 +144,10 @@ window.__ModuleLoader__.load({
         catch (e) { setMsg(String((e && e.message) || e)) }
       }, [scope])
       React.useEffect(() => { if (cur) loadRows(cur) }, [cur, loadRows])
+      const actItem = async (api, body) => {
+        try { const r = await postJson(api, body, scope); setMsg(r.out || 'ok'); setEditingItem(null); await loadRows(cur); reload && reload() }
+        catch (e) { setMsg(String((e && e.message) || e)) }
+      }
       const gc = async () => {
         try { const r = await postJson('/gc', {}, scope); setMsg(r.out || 'ok'); reload && reload() }
         catch (e) { setMsg(String((e && e.message) || e)) }
@@ -203,10 +208,25 @@ window.__ModuleLoader__.load({
         h('div', { className: 'pm-list' },
           rows.length === 0
             ? h('div', { className: 'pm-empty' }, '这个分区还是空的')
-            : rows.map((r) => h('div', { key: r.id, className: 'pm-row' },
-              h('span', { className: 'pm-k' }, r.id),
-              h('span', { className: 'pm-t', title: r.text }, (r.flag ? r.flag + ' ' : '') + r.text),
-              h('span', { className: 'pm-k', style: { textAlign: 'right' } }, r.days + 'd')))))
+            : rows.map((r) => editingItem === r.id
+              ? h('div', { key: r.id, className: 'pm-form' },
+                h('span', { className: 'pm-k' }, r.id),
+                h('input', {
+                  className: 'pm-inp', defaultValue: r.text, maxLength: 30, autoFocus: true,
+                  id: 'pm-item-' + r.id,
+                  onKeyDown: (e) => { if (e.key === 'Enter') actItem('/edit-item', { k: cur, id: r.id, text: e.currentTarget.value }) },
+                }),
+                h('button', { className: 'pm-btn', onClick: () => setEditingItem(null) }, '取消'),
+                h('button', {
+                  className: 'pm-btn primary',
+                  onClick: () => { const el = document.getElementById('pm-item-' + r.id); actItem('/edit-item', { k: cur, id: r.id, text: el && el.value }) },
+                }, '存'))
+              : h('div', { key: r.id, className: 'pm-row' },
+                h('span', { className: 'pm-k' }, r.id),
+                h('span', { className: 'pm-t', title: r.text }, (r.flag ? r.flag + ' ' : '') + r.text),
+                h('span', { className: 'pm-k', style: { textAlign: 'right', minWidth: 30 } }, r.days + 'd'),
+                h('button', { className: 'pm-btn', onClick: () => setEditingItem(r.id) }, '改'),
+                h('button', { className: 'pm-btn', onClick: () => actItem('/del-item', { k: cur, id: r.id }) }, '删')))))
     }
 
     function MemoryView() {
