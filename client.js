@@ -237,6 +237,8 @@ window.__ModuleLoader__.load({
       const [cur, setCur] = React.useState('')
       const [msg, setMsg] = React.useState('')
       const [wsOpen, setWsOpen] = React.useState(false)
+      const [q, setQ] = React.useState('')
+      const [hits, setHits] = React.useState(null)
       const [wsCwd, setWsCwd] = React.useState('')
       const [workspaces, setWorkspaces] = React.useState([])
       const loadScopes = React.useCallback(async () => {
@@ -254,6 +256,15 @@ window.__ModuleLoader__.load({
       React.useEffect(() => { loadFolders() }, [scope])
       React.useEffect(() => { get('/workspaces').then((d) => setWorkspaces(d.workspaces || [])).catch(() => {}) }, [wsOpen])
 
+      const doSearch = async () => {
+        const kw = q.trim()
+        if (!kw) { setHits(null); return }
+        try {
+          const r = await get('/search?q=' + encodeURIComponent(kw), scope)
+          const lines = String(r.out || '').split(String.fromCharCode(10)).filter(Boolean)
+          setHits(lines[0] === '没找到' ? [] : lines)
+        } catch (e) { setMsg(String((e && e.message) || e)) }
+      }
       const pickScope = (id) => { setScope(id); setCur(''); setFolders([]) }
       const addWs = async () => {
         const cwd = wsCwd.trim()
@@ -272,6 +283,12 @@ window.__ModuleLoader__.load({
               className: 'pm-sel', value: scope,
               onChange: (e) => pickScope(e.target.value),
             }, scopes.map((s) => h('option', { key: s.id, value: s.id }, s.cwd ? s.label + '（' + s.cwd + '）' : s.label))),
+            h('input', {
+              className: 'pm-inp', placeholder: '搜记忆…', value: q, style: { flex: '1 1 160px', minWidth: 120 },
+              onChange: (e) => setQ(e.target.value),
+              onKeyDown: (e) => { if (e.key === 'Enter') doSearch(); if (e.key === 'Escape') { setQ(''); setHits(null) } },
+            }),
+            h('button', { className: 'pm-btn', onClick: doSearch }, '搜'),
             h('button', { className: 'pm-btn', onClick: () => setWsOpen((v) => !v) }, '+ 工作区'),
             msg ? h('span', { style: { opacity: .55, fontSize: 11 } }, msg) : null)),
         wsOpen ? h('div', { className: 'pm-form' },
@@ -279,6 +296,13 @@ window.__ModuleLoader__.load({
             h('option', { value: '' }, '— 选一个 DSH 工作区 —'),
             workspaces.map((w) => h('option', { key: w.id, value: w.path }, (w.bound ? '✓ ' : '') + w.title + '  ' + w.path))),
           h('button', { className: 'pm-btn primary', onClick: addWs }, '建记忆库')) : null,
+        hits ? h('div', { className: 'pm-card' },
+          h('div', { className: 'pm-head' },
+            h('span', null, '搜索「' + q.trim() + '」'),
+            h('button', { className: 'pm-btn', onClick: () => { setQ(''); setHits(null) } }, '清掉')),
+          hits.length === 0
+            ? h('div', { className: 'pm-empty' }, '没有匹配的记忆')
+            : h('div', { className: 'pm-list' }, hits.map((line, i) => h('div', { key: i, className: 'pm-row' }, h('span', { className: 'pm-t' }, line))))) : null,
         h(PendingBox, { scope, folders, onChanged: loadFolders }),
         h('div', { style: { display: 'flex', minHeight: 260 } },
           h(Browser, { scope, folders, cur, setCur, reload: () => loadFolders() })))

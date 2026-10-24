@@ -175,6 +175,7 @@ export function apply(ctx) {
         if (p === '/scopes') return json(res, 200, { ok: true, scopes: listScopes() })
         if (p === '/list') return json(res, 200, { ok: true, ...listFolders(qs) })
         if (p === '/open') return json(res, 200, openFolder(qs, u.searchParams.get('k') || ''))
+        if (p === '/search') return json(res, 200, { ok: true, out: runIn(['search', u.searchParams.get('q') || ''], qs) })
         if (p === '/pending') return json(res, 200, { ok: true, rows: readPendingList(qs) })
         if (p === '/gc') return json(res, 200, { ok: true, out: runIn(['gc'], qs) })
         if (p === '/init') return json(res, 200, { ok: true, out: runIn(['init'], qs) })

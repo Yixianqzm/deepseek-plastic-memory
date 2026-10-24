@@ -118,6 +118,21 @@ function cmdEditMem(args) {
   writeNotes(f.k, rows)
   console.log('改好了')
 }
+function cmdSearch(args) {
+  const q = txt(args.join(' ')).toLowerCase()
+  if (!q) return console.log('给个关键词')
+  const hits = []
+  for (const f of S.folders) {
+    const tag = f.parent ? f.parent + '>' + f.name : f.k + f.name
+    for (const r of readNotes(f.k)) {
+      if ((r.text || '').toLowerCase().includes(q)) hits.push(tag + ' ' + r.id + ' ' + (r.flag ? r.flag + ' ' : '') + r.text)
+    }
+  }
+  for (const x of readPending()) {
+    if ((x.text || '').toLowerCase().includes(q)) hits.push('待审 ' + x.id + ' ' + x.text)
+  }
+  console.log(hits.length ? hits.join(String.fromCharCode(10)) : '没找到')
+}
 function cmdPending() {
   const p = readPending()
   if (!p.length) return console.log('空')
@@ -240,6 +255,6 @@ function cmdInit() {
   console.log('init ok ' + HOME)
 }
 const [cmd, ...args] = process.argv.slice(2)
-const MAP = { idx: cmdIdx, open: cmdOpen, add: (a) => cmdAdd(a, false), 'add-now': (a) => cmdAdd(a, true), 'edit-mem': cmdEditMem, pending: cmdPending, approve: cmdApprove, reject: cmdReject, edit: cmdEdit, done: cmdDone, rm: cmdRm, gc: cmdGc, mk: cmdMk, init: cmdInit }
+const MAP = { idx: cmdIdx, open: cmdOpen, add: (a) => cmdAdd(a, false), 'add-now': (a) => cmdAdd(a, true), 'edit-mem': cmdEditMem, search: cmdSearch, pending: cmdPending, approve: cmdApprove, reject: cmdReject, edit: cmdEdit, done: cmdDone, rm: cmdRm, gc: cmdGc, mk: cmdMk, init: cmdInit }
 if (!MAP[cmd]) { console.log('用法: idx|open|add|add-now|pending|approve|reject|edit|done|rm|gc|mk|init'); process.exit(1) }
 MAP[cmd](args)
