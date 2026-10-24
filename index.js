@@ -118,7 +118,7 @@ const obj = (props, required = []) => ({ type: 'object', properties: props, requ
 export function apply(ctx) {
   ctx.tools.register({
     name: 'plastic_memory_idx',
-    description: '可塑性记忆：一行索引，列出所有分区和条数（M主人:3 P约定:1 ...）。看这个再决定翻哪个分区。',
+    description: '可塑性记忆：一行索引，列出所有分区和条数（M主人:3 P约定:1 ...）。看这个再决定翻哪个分区；一次最多翻两个，闲聊不用翻。',
     parameters: obj({}),
     output: textOutput,
     async execute() { return run(['idx']) },
@@ -132,7 +132,7 @@ export function apply(ctx) {
   })
   ctx.tools.register({
     name: 'plastic_memory_add',
-    description: '可塑性记忆：把一条记忆放进待审批队列（主人会看到，能改能驳能采纳）。单条 ≤30 字，开头加 * 表示重要。看到主人的新习惯、情绪模式、口头禅、作息变化，都可以主动记一条。禁止记密码、token、密钥。',
+    description: '可塑性记忆：把一条记忆放进待审批队列（主人会看到，能改能驳能采纳）。单条 ≤30 字，开头加 * 表示重要。看到主人的新习惯、情绪模式、口头禅、作息变化，主动记一条——不用等他说。但一轮最多一条、一天别超过五条，闲聊和重复的别记。禁止记密码、token、密钥。',
     parameters: obj({
       folder: { ...str, description: '分区代号，如 M、M>行为、R、T' },
       text: { ...str, description: '要记的内容，≤30 字' },
