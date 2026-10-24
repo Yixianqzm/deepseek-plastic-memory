@@ -186,14 +186,17 @@ function cmdRm(args) {
   console.log('rm ok')
 }
 const RULES = {
-  M: { keepAll: 1 },
-  P: { keepAll: 1, doneExpire: 30 },
-  C: { oldKeep: 3 },
-  R: { oldKeep: 8 },
-  T: { oldKeep: 8 },
-  X: { oldKeep: 8 },
+  M: { keepAll: 1 },          // 主人、以及主人下面所有子分区：只由主人手删
+  P: { keepAll: 1, doneExpire: 30 }, // 约定：全留，完成的过 30 天才清
+  C: { oldKeep: 5 },          // 续缘：老的自然淡掉
+  R: { keepAll: 1 },          // 喜好：只由主人手删
+  T: { oldKeep: 10 },         // 时间线
+  X: { oldKeep: 10 },         // 自定义
 }
-function ruleOf(f) { return RULES[f.k] || RULES[f.k[0]] || RULES.X }
+function ruleOf(f) {
+  if (f.parent) return RULES[f.parent] || RULES.X
+  return RULES[f.k] || RULES[f.k[0]] || RULES.X
+}
 function cmdGc() {
   const now = Date.now()
   let gone = 0, kept = 0
@@ -204,7 +207,7 @@ function cmdGc() {
     for (const n of rows) {
       const age = (now - n.ts) / DAY
       const imp = n.flag === '*'
-      if (f.guard && r.keepAll && !(r.doneExpire && n.flag === '✓' && age > r.doneExpire)) { out.push(n); kept++; continue }
+      if (r.keepAll && !(r.doneExpire && n.flag === '✓' && age > r.doneExpire)) { out.push(n); kept++; continue }
       if (age > 30) { trash(f.k, n, 'expired'); gone++; continue }
       if (age > 7) {
         if (imp) { out.push(n); kept++; continue }
