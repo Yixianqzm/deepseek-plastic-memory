@@ -165,6 +165,16 @@ export function apply(ctx) {
     async execute(a) { return run(['add', String(a.folder), String(a.text)]) },
   })
   ctx.tools.register({
+    name: 'plastic_memory_mk',
+    description: '可塑性记忆：开一个新分区或子分区，比如在主人下面开「习惯」「作息」。看到同一类事情反复出现，就自己开一个，别硬塞进时间线。',
+    parameters: obj({
+      name: { ...str, description: '分区名，一两个字' },
+      parent: { ...str, description: '父分区代号，如 M；不填就是主分区' },
+    }, ['name']),
+    output: textOutput,
+    async execute(a) { return run(['mk', String(a.name), ...(a.parent ? [String(a.parent)] : [])]) },
+  })
+  ctx.tools.register({
     name: 'plastic_memory_pending',
     description: '可塑性记忆：看待审批队列——主人还没采纳的记忆。',
     parameters: obj({}),
