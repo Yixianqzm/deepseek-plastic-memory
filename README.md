@@ -144,7 +144,7 @@ plastic-memory/
 
 ## 下载
 
-[plastic-memory-v2.0.2.zip](https://github.com/Yixianqzm/deepseek-plastic-memory/releases/download/v2.0.2/plastic-memory-v2.0.2.zip)
+[plastic-memory-v2.0.3.zip](https://github.com/Yixianqzm/deepseek-plastic-memory/releases/download/v2.0.3/plastic-memory-v2.0.3.zip)
 
 更多版本在 [Releases](https://github.com/Yixianqzm/deepseek-plastic-memory/releases)。
 
