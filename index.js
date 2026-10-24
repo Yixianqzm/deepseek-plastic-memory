@@ -58,6 +58,18 @@ function bindWorkspace(cwd) {
   return { ok: true, id: 'ws:' + slug, label: meta.name }
 }
 
+function listDshWorkspaces() {
+  const j = readJson(join(DSH_HOME, '.dsh', 'storages', 'workspace.json'), {})
+  const t = (j.tables && j.tables.workspaces) || {}
+  const bound = new Set(listScopes().filter(x => x.cwd).map(x => String(x.cwd).toLowerCase()))
+  const out = []
+  for (const [id, w] of Object.entries(t)) {
+    if (!w || !w.path) continue
+    out.push({ id, title: w.title || basename(w.path), path: w.path, bound: bound.has(String(w.path).toLowerCase()) })
+  }
+  return out
+}
+
 const readJson = (p, d) => { try { return JSON.parse(readFileSync(p, 'utf8')) } catch { return d } }
 
 function listFolders(scope) {
@@ -160,6 +172,7 @@ export function apply(ctx) {
       const p = u.pathname.replace(/^\/api\/plastic-memory/, '')
       const qs = u.searchParams.get('scope') || 'global'
       try {
+        if (p === '/workspaces') return json(res, 200, { ok: true, workspaces: listDshWorkspaces() })
         if (p === '/scopes') return json(res, 200, { ok: true, scopes: listScopes() })
         if (p === '/list') return json(res, 200, { ok: true, ...listFolders(qs) })
         if (p === '/open') return json(res, 200, openFolder(qs, u.searchParams.get('k') || ''))

@@ -218,6 +218,7 @@ window.__ModuleLoader__.load({
       const [msg, setMsg] = React.useState('')
       const [wsOpen, setWsOpen] = React.useState(false)
       const [wsCwd, setWsCwd] = React.useState('')
+      const [workspaces, setWorkspaces] = React.useState([])
       const loadFolders = React.useCallback(async (s) => {
         try {
           const [sc, lf] = await Promise.all([get('/scopes'), get('/list', s || scope)])
@@ -228,6 +229,7 @@ window.__ModuleLoader__.load({
         } catch (e) { setMsg(String((e && e.message) || e)) }
       }, [scope, cur])
       React.useEffect(() => { loadFolders() }, [scope])
+      React.useEffect(() => { get('/workspaces').then((d) => setWorkspaces(d.workspaces || [])).catch(() => {}) }, [wsOpen])
       React.useEffect(() => { const t = setInterval(() => loadFolders(), 15000); return () => clearInterval(t) }, [scope])
       const pickScope = (id) => { setScope(id); setCur(''); setFolders([]) }
       const addWs = async () => {
@@ -250,7 +252,9 @@ window.__ModuleLoader__.load({
             h('button', { className: 'pm-btn', onClick: () => setWsOpen((v) => !v) }, '+ 工作区'),
             msg ? h('span', { style: { opacity: .55, fontSize: 11 } }, msg) : null)),
         wsOpen ? h('div', { className: 'pm-form' },
-          h('input', { className: 'pm-inp', placeholder: '工作区路径，如 C:/Users/xxx/proj', value: wsCwd, onChange: (e) => setWsCwd(e.target.value), onKeyDown: (e) => { if (e.key === 'Enter') addWs() } }),
+          h('select', { className: 'pm-sel', style: { flex: 1 }, value: wsCwd, onChange: (e) => setWsCwd(e.target.value) },
+            h('option', { value: '' }, '— 选一个 DSH 工作区 —'),
+            workspaces.map((w) => h('option', { key: w.id, value: w.path }, (w.bound ? '✓ ' : '') + w.title + '  ' + w.path))),
           h('button', { className: 'pm-btn primary', onClick: addWs }, '建记忆库')) : null,
         h(PendingBox, { scope, folders, onChanged: loadFolders }),
         h('div', { style: { display: 'flex', minHeight: 260 } },
