@@ -59,18 +59,73 @@ function cmdOpen(args) {
     console.log(`${r.id} ${d}d ${r.flag || '-'} ${r.text}`)
   }
 }
-function cmdAdd(args) {
+// 待审批队列：模型/自动写入先落这里，等人点采纳
+const PF = () => path.join(HOME, '_pending.json')
+function readPending() {
+  try { const a = JSON.parse(fs.readFileSync(PF(), 'utf8')); return Array.isArray(a) ? a : [] } catch { return [] }
+}
+function writePending(a) {
+  fs.mkdirSync(HOME, { recursive: true })
+  fs.writeFileSync(PF(), JSON.stringify(a, null, 1))
+}
+function commit(k, it) {
+  const rows = readNotes(k)
+  rows.push({ id: it.id || shortId(), ts: it.ts || Date.now(), flag: it.flag || '', text: it.text })
+  writeNotes(k, rows)
+  return rows.length
+}
+function cmdAdd(args, direct) {
   const f = find(args[0])
   if (!f) return console.log('无此分区：' + S.folders.map(x => x.k + x.name).join(' '))
   const t = txt(args.slice(1).join(' '))
   if (!t) return console.log('空内容不记')
   if (len(t) > MAXLEN) return console.log(`太长(${len(t)}字)，压缩到 ${MAXLEN} 字内`)
-  const rows = readNotes(f.k)
-  if (rows.some(r => r.text === t)) return console.log('已有')
-  const imp = /^[*!]/.test(t) ? '*' : ''
-  rows.push({ id: shortId(), ts: Date.now(), flag: imp, text: t.replace(/^[*!]/, '') })
-  writeNotes(f.k, rows)
-  console.log('ok ' + f.k + ':' + rows.length)
+  const imp = /^\*/.test(t) ? '*' : ''
+  const clean = t.replace(/^\*/, '')
+  if (direct) {
+    if (readNotes(f.k).some(r => r.text === clean)) return console.log('已有')
+    return console.log('ok ' + f.k + ':' + commit(f.k, { flag: imp, text: clean }))
+  }
+  const p = readPending()
+  if (p.some(x => x.k === f.k && x.text === clean)) return console.log('已在待审里')
+  p.push({ id: shortId(), k: f.k, text: clean, flag: imp, ts: Date.now() })
+  writePending(p)
+  console.log('待审 ' + p.length)
+}
+function cmdPending() {
+  const p = readPending()
+  if (!p.length) return console.log('空')
+  const now = Date.now()
+  for (const x of p) console.log(`${x.id} ${x.k}${x.flag ? ' *' : ''} ${Math.floor((now - x.ts) / 6e4)}m ${x.text}`)
+}
+function cmdApprove(args) {
+  const p = readPending()
+  const i = p.findIndex(x => x.id === args[0])
+  if (i < 0) return console.log('无此条')
+  const it = p[i]
+  commit(it.k, it)
+  p.splice(i, 1)
+  writePending(p)
+  console.log('采纳 ' + it.k + ' 剩' + p.length)
+}
+function cmdReject(args) {
+  const p = readPending()
+  const i = p.findIndex(x => x.id === args[0])
+  if (i < 0) return console.log('无此条')
+  p.splice(i, 1)
+  writePending(p)
+  console.log('驳回 剩' + p.length)
+}
+function cmdEdit(args) {
+  const p = readPending()
+  const i = p.findIndex(x => x.id === args[0])
+  if (i < 0) return console.log('无此条')
+  const t = txt(args.slice(1).join(' '))
+  if (!t) return console.log('空内容')
+  if (len(t) > MAXLEN) return console.log(`太长(${len(t)}字)`)
+  p[i].text = t
+  writePending(p)
+  console.log('改好了')
 }
 function cmdDone(args) {
   const f = find(args[0]); if (!f) return console.log('无此分区')
@@ -148,6 +203,6 @@ function cmdInit() {
   console.log('init ok ' + HOME)
 }
 const [cmd, ...args] = process.argv.slice(2)
-const MAP = { idx: cmdIdx, open: cmdOpen, add: cmdAdd, done: cmdDone, rm: cmdRm, gc: cmdGc, mk: cmdMk, init: cmdInit }
-if (!MAP[cmd]) { console.log('用法: idx|open|add|done|rm|gc|mk|init'); process.exit(1) }
+const MAP = { idx: cmdIdx, open: cmdOpen, add: (a) => cmdAdd(a, false), 'add-now': (a) => cmdAdd(a, true), pending: cmdPending, approve: cmdApprove, reject: cmdReject, edit: cmdEdit, done: cmdDone, rm: cmdRm, gc: cmdGc, mk: cmdMk, init: cmdInit }
+if (!MAP[cmd]) { console.log('用法: idx|open|add|add-now|pending|approve|reject|edit|done|rm|gc|mk|init'); process.exit(1) }
 MAP[cmd](args)

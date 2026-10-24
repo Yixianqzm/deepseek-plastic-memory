@@ -77,13 +77,20 @@ export function apply(ctx) {
   })
   ctx.tools.register({
     name: 'plastic_memory_add',
-    description: '可塑性记忆：记一条，单条不超过 30 个字。开头加 * 表示重要（7 天后压缩时只有 * 能留下）。禁止记密码、token、密钥。',
+    description: '可塑性记忆：把一条记忆放进待审批队列——主人会在设置里看到，能改、能驳回、能采纳。单条不超过 30 个字，开头加 * 表示重要。禁止记密码、token、密钥。',
     parameters: obj({
       folder: { ...str, description: '分区代号，如 M / P / C' },
       text: { ...str, description: '要记的内容，≤30 字' },
     }, ['folder', 'text']),
     output: textOutput,
     async execute(a) { return run(['add', String(a.folder), String(a.text)]) },
+  })
+  ctx.tools.register({
+    name: 'plastic_memory_pending',
+    description: '可塑性记忆：看待审批队列——主人还没采纳的记忆都在这里。',
+    parameters: obj({}),
+    output: textOutput,
+    async execute() { return run(['pending']) },
   })
   ctx.tools.register({
     name: 'plastic_memory_gc',
@@ -98,6 +105,16 @@ export function apply(ctx) {
     res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' })
     res.end(JSON.stringify(body))
   }
+function readPendingList() {
+  const home = process.env.MEMTREE_HOME || join(process.env.USERPROFILE || process.env.HOME || '.', '.dsh', 'plastic-memory')
+  try { const a = JSON.parse(readFileSync(join(home, '_pending.json'), 'utf8')); return Array.isArray(a) ? a : [] } catch { return [] }
+}
+
+  const readBody = (req) => new Promise((resolve) => {
+    let s = ''
+    req.on('data', (c) => { s += c; if (s.length > 1e6) req.destroy() })
+    req.on('end', () => { try { resolve(JSON.parse(s || '{}')) } catch { resolve({}) } })
+  })
   ctx.webServer.register({
     kind: 'prefix',
     path: '/api/plastic-memory',
@@ -109,6 +126,11 @@ export function apply(ctx) {
         if (p === '/open') return json(res, 200, openFolder(u.searchParams.get('k') || ''))
         if (p === '/gc') return json(res, 200, { ok: true, out: run(['gc']) })
         if (p === '/init') return json(res, 200, { ok: true, out: run(['init']) })
+        if (p === '/pending') return json(res, 200, { ok: true, rows: readPendingList() })
+        if (req.method === 'POST' && p === '/approve') { const b = await readBody(req); return json(res, 200, { ok: true, out: run(['approve', String(b.id)]) }) }
+        if (req.method === 'POST' && p === '/reject') { const b = await readBody(req); return json(res, 200, { ok: true, out: run(['reject', String(b.id)]) }) }
+        if (req.method === 'POST' && p === '/edit') { const b = await readBody(req); return json(res, 200, { ok: true, out: run(['edit', String(b.id), String(b.text)]) }) }
+        if (req.method === 'POST' && p === '/add-now') { const b = await readBody(req); return json(res, 200, { ok: true, out: run(['add-now', String(b.folder), String(b.text)]) }) }
         return json(res, 404, { ok: false, error: 'unknown' })
       } catch (e) {
         return json(res, 500, { ok: false, error: e?.message || String(e) })

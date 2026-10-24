@@ -28,7 +28,10 @@ description: 可塑性记忆（Plastic Memory）—— 按可自由扩展的子�
 N=<node 绝对路径>; M=~/.dsh/plastic-memory/memtree.mjs
 $N $M idx              # 一行索引：分区 + 条数（最省）
 $N $M open M           # 翻一个分区：id 天数 标记 内容
-$N $M add M 爱吃辣      # 记一条（≤30 字）
+$N $M add M 爱吃辣      # 提交一条待审（≤30 字）
+$N $M add-now M 爱吃辣  # 直接写入，跳过审批（自己写用）
+$N $M pending          # 看待审队列
+$N $M approve <id>     # 采纳（reject 驳回 / edit 改内容）
 $N $M add R *怕辣       # * 开头 = 重要，压缩时保住
 $N $M done P i4bp      # 约定完成
 $N $M rm C i4fx        # 删一条（进回收站；M/P 禁删）

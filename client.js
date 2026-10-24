@@ -11,6 +11,54 @@ window.__ModuleLoader__.load({
     const API = '/api/plastic-memory'
     const get = (p) => fetch(API + p).then((r) => r.json())
     const post = (p) => fetch(API + p, { method: 'POST' }).then((r) => r.json())
+    const postJson = (p, body) => fetch(API + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) }).then((r) => r.json())
+
+    function PendingBox() {
+      const [rows, setRows] = React.useState([])
+      const [folders, setFolders] = React.useState([])
+      const [msg, setMsg] = React.useState('')
+      const load = React.useCallback(async () => {
+        try {
+          const d = await get('/pending')
+          setRows(d.rows || [])
+          const l = await get('/list')
+          setFolders(l.folders || [])
+        } catch (e) { setMsg(String((e && e.message) || e)) }
+      }, [])
+      React.useEffect(() => { load() }, [load])
+      const act = async (api, body) => {
+        try {
+          const r = await postJson(api, body)
+          setMsg(r.out || 'ok')
+          await load()
+        } catch (e) { setMsg(String((e && e.message) || e)) }
+      }
+      const doEdit = (r) => {
+        const t = prompt('改一下（30 字内）', r.text)
+        if (t === null) return
+        void act('/edit', { id: r.id, text: t })
+      }
+      const doAdd = () => {
+        const k = prompt('写到哪个分区？' + folders.map((f) => f.k + f.name).join(' '), 'M')
+        if (!k) return
+        const t = prompt('写点什么（30 字内）')
+        if (!t) return
+        void act('/add-now', { folder: k.trim(), text: t })
+      }
+      return h('div', { style: { border: '1px solid var(--dsw-border, #3a3a3a)', borderRadius: 8, padding: 10, marginBottom: 12 } },
+        h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 } },
+          h('strong', { style: { fontSize: 13 } }, '待审批 ' + rows.length),
+          h('button', { onClick: doAdd, style: { fontSize: 12, padding: '3px 10px', cursor: 'pointer' } }, '自己写一条')),
+        msg ? h('div', { style: { fontSize: 11, opacity: 0.6, marginBottom: 4 } }, msg) : null,
+        rows.length === 0
+          ? h('div', { style: { fontSize: 12, opacity: 0.5 } }, '没有待审的')
+          : rows.map((r) => h('div', { key: r.id, style: { display: 'flex', gap: 8, alignItems: 'center', padding: '3px 0', fontSize: 13 } },
+            h('span', { style: { opacity: 0.5, width: 46 } }, r.k),
+            h('span', { style: { flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, r.text),
+            h('button', { onClick: () => doEdit(r), style: { fontSize: 11, padding: '2px 8px', cursor: 'pointer' } }, '改'),
+            h('button', { onClick: () => act('/reject', { id: r.id }), style: { fontSize: 11, padding: '2px 8px', cursor: 'pointer' } }, '驳'),
+            h('button', { onClick: () => act('/approve', { id: r.id }), style: { fontSize: 11, padding: '2px 8px', cursor: 'pointer', fontWeight: 600 } }, '采纳'))))
+    }
 
     function Browser({ compact }) {
       const [folders, setFolders] = React.useState([])
@@ -91,6 +139,7 @@ window.__ModuleLoader__.load({
       }, h('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 10 } },
         h('strong', null, '可塑性记忆'),
         h('button', { onClick: onClose, style: { cursor: 'pointer', background: 'transparent', color: 'inherit', border: 'none', fontSize: 16 } }, '×')),
+        h(PendingBox, {}),
         h(Browser, { compact: true })))
     }
 
@@ -110,6 +159,7 @@ window.__ModuleLoader__.load({
         h('h3', { style: { margin: '0 0 4px' } }, '可塑性记忆'),
         h('div', { style: { fontSize: 12, opacity: 0.7, marginBottom: 12 } },
           '分区式长期记忆：左边选分区，右边看条目。7 天内完整保留，7~30 天压缩，30 天后进回收站；主人信息和约定不删。'),
+        h(PendingBox, {}),
         h(Browser, {}))
     }
 
