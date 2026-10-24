@@ -98,7 +98,7 @@ window.__ModuleLoader__.load({
           h('select', { className: 'pm-sel', value: k, onChange: (e) => setK(e.target.value) },
             folders.map((f) => h('option', { key: f.k, value: f.k }, f.parent ? f.parent + ' › ' + f.name : f.k + ' ' + f.name))),
           h('input', {
-            className: 'pm-inp', placeholder: '写点什么，30 字内', value: text, maxLength: 30, autoFocus: true,
+            className: 'pm-inp', placeholder: '写点什么，越短越好', value: text, autoFocus: true,
             onChange: (e) => setText(e.target.value),
             onKeyDown: (e) => { if (e.key === 'Enter') submit() },
           }),
@@ -110,7 +110,7 @@ window.__ModuleLoader__.load({
             ? h('div', { key: r.id, className: 'pm-form' },
               h('span', { className: 'pm-k' }, r.k),
               h('input', {
-                className: 'pm-inp', defaultValue: r.text, maxLength: 30, autoFocus: true,
+                className: 'pm-inp', defaultValue: r.text, autoFocus: true,
                 id: 'pm-edit-' + r.id,
                 onKeyDown: (e) => { if (e.key === 'Enter') act('/edit', { id: r.id, text: e.currentTarget.value }) },
               }),
@@ -212,7 +212,7 @@ window.__ModuleLoader__.load({
               ? h('div', { key: r.id, className: 'pm-form' },
                 h('span', { className: 'pm-k' }, r.id),
                 h('input', {
-                  className: 'pm-inp', defaultValue: r.text, maxLength: 30, autoFocus: true,
+                  className: 'pm-inp', defaultValue: r.text, autoFocus: true,
                   id: 'pm-item-' + r.id,
                   onKeyDown: (e) => { if (e.key === 'Enter') actItem('/edit-item', { k: cur, id: r.id, text: e.currentTarget.value }) },
                 }),

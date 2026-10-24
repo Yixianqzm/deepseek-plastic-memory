@@ -5,7 +5,7 @@ import path from 'node:path'
 const HOME = process.env.MEMTREE_HOME || path.join(process.env.USERPROFILE || process.env.HOME || '.', '.dsh', 'plastic-memory')
 const TRASH = path.join(HOME, '_trash')
 const MAX_FOLDERS = 15
-const MAXLEN = 30
+const SOFTLEN = 60 // 只是提示，不拦
 const DAY = 864e5
 // 内置分区：M 主人(禁删) P 约定(禁删) C 续缘 R 喜好 T 时间线
 const BUILTIN = [
@@ -92,7 +92,7 @@ function cmdAdd(args, direct) {
   if (!f.parent && S.folders.some(x => x.parent === f.k)) return console.log('主分区只放子分区，写到子分区里（如 ' + f.k + '>某子分区）')
   const t = txt(args.slice(1).join(' '))
   if (!t) return console.log('空内容不记')
-  if (len(t) > MAXLEN) return console.log(`太长(${len(t)}字)，压缩到 ${MAXLEN} 字内`)
+  if (len(t) > SOFTLEN) console.log(`偏长(${len(t)}字)，能短点更好`)
   const imp = /^\*/.test(t) ? '*' : ''
   const clean = t.replace(/^\*/, '')
   if (direct) {
@@ -113,7 +113,6 @@ function cmdEditMem(args) {
   const r = rows.find(x => x.id === args[1]); if (!r) return console.log('无此条')
   const t = txt(args.slice(2).join(' '))
   if (!t) return console.log('空内容')
-  if (len(t) > MAXLEN) return console.log(`太长(${len(t)}字)`)
   r.text = t
   writeNotes(f.k, rows)
   console.log('改好了')
@@ -163,7 +162,6 @@ function cmdEdit(args) {
   if (i < 0) return console.log('无此条')
   const t = txt(args.slice(1).join(' '))
   if (!t) return console.log('空内容')
-  if (len(t) > MAXLEN) return console.log(`太长(${len(t)}字)`)
   p[i].text = t
   writePending(p)
   console.log('改好了')

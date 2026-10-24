@@ -131,10 +131,10 @@ export function apply(ctx) {
   })
   ctx.tools.register({
     name: 'plastic_memory_add',
-    description: '可塑性记忆：把一条记忆放进待审批队列（主人会看到，能改能驳能采纳）。单条 ≤30 字，开头加 * 表示重要。看到主人的新习惯、情绪模式、口头禅、作息变化，主动记一条——不用等他说。但一轮最多一条、一天别超过五条，闲聊和重复的别记。禁止记密码、token、密钥。',
+    description: '可塑性记忆：把一条记忆放进待审批队列（主人会看到，能改能驳能采纳）。内容尽量精简（一两句就够，别写小作文），开头加 * 表示重要。看到主人的新习惯、情绪模式、口头禅、作息变化，主动记一条——不用等他说。但一轮最多一条、一天别超过五条，闲聊和重复的别记。禁止记密码、token、密钥。',
     parameters: obj({
       folder: { ...str, description: '分区代号，如 M、M>行为、R、T' },
-      text: { ...str, description: '要记的内容，≤30 字' },
+      text: { ...str, description: '要记的内容，能短则短' },
     }, ['folder', 'text']),
     output: textOutput,
     async execute(a) { return run(['add', String(a.folder), String(a.text)]) },
