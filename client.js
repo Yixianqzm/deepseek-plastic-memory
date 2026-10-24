@@ -37,6 +37,7 @@ window.__ModuleLoader__.load({
       .pm-tabs { display: flex; gap: 4px; padding: 8px 6px 0; flex-wrap: wrap; }
       .pm-tab { border: none; background: transparent; color: inherit; font-size: 12px; padding: 4px 9px; border-radius: 999px; cursor: pointer; opacity: .6; }
       .pm-tab:hover { opacity: .9; }
+      .pm-sub { margin-left: 12px; opacity: .9; }
       .pm-tab.on { opacity: 1; background: color-mix(in srgb, currentColor 12%, transparent); font-weight: 600; }
       .pm-list { padding: 4px 6px 8px; }
     `
@@ -128,6 +129,10 @@ window.__ModuleLoader__.load({
       const [cur, setCur] = React.useState('')
       const [rows, setRows] = React.useState([])
       const [msg, setMsg] = React.useState('')
+      const [expanded, setExpanded] = React.useState({})
+      const [mkOpen, setMkOpen] = React.useState(false)
+      const [mkName, setMkName] = React.useState('')
+      const [mkParent, setMkParent] = React.useState('')
       const load = React.useCallback(async (pick) => {
         try {
           const d = await get('/list')
@@ -141,15 +146,53 @@ window.__ModuleLoader__.load({
         try { const r = await postJson('/gc', {}); setMsg(r.out || 'ok'); await load(cur) }
         catch (e) { setMsg(String((e && e.message) || e)) }
       }
+      const tops = folders.filter((f) => !f.parent)
+      const subsOf = (k) => folders.filter((f) => f.parent === k)
+      const mkSubmit = async () => {
+        const nm = mkName.trim()
+        if (!nm) { setMsg('先起个名'); return }
+        try {
+          const r = await postJson('/mk', { name: nm, parent: mkParent })
+          setMsg(r.out || 'ok')
+          setMkName('')
+          setMkOpen(false)
+          await load(mkParent || undefined)
+        } catch (e) { setMsg(String((e && e.message) || e)) }
+      }
       return h('div', { className: 'pm-card', style: { flex: 1, minWidth: 0 } },
         h('div', { className: 'pm-head' },
           h('span', null, '记忆'),
-          h('button', { className: 'pm-btn', onClick: gc }, '跑遗忘曲线')),
+          h('span', { style: { display: 'flex', gap: 6 } },
+            h('button', { className: 'pm-btn', onClick: () => setMkOpen((v) => !v) }, '+ 分区'),
+            h('button', { className: 'pm-btn', onClick: gc }, '跑遗忘曲线'))),
+        mkOpen ? h('div', { className: 'pm-form' },
+          h('select', { className: 'pm-sel', value: mkParent, onChange: (e) => setMkParent(e.target.value) },
+            h('option', { value: '' }, '— 新建主分区 —'),
+            tops.map((f) => h('option', { key: f.k, value: f.k }, '放进 ' + f.k + ' ' + f.name))),
+          h('input', {
+            className: 'pm-inp', placeholder: '分区名，例如 行为', value: mkName,
+            onChange: (e) => setMkName(e.target.value),
+            onKeyDown: (e) => { if (e.key === 'Enter') mkSubmit() },
+          }),
+          h('button', { className: 'pm-btn primary', onClick: mkSubmit }, '建')) : null,
         h('div', { className: 'pm-tabs' },
-          folders.map((f) => h('button', {
-            key: f.k, className: 'pm-tab' + (cur === f.k ? ' on' : ''),
-            onClick: () => load(f.k),
-          }, (f.parent ? f.parent + ' > ' + f.name : f.k + ' ' + f.name) + '  ' + f.n))),
+          tops.map((f) => {
+            const kids = subsOf(f.k)
+            const open = !!expanded[f.k]
+            return h(React.Fragment, { key: f.k },
+              h('button', {
+                className: 'pm-tab' + (cur === f.k ? ' on' : ''),
+                onClick: () => {
+                  if (kids.length) setExpanded((e) => ({ ...e, [f.k]: !e[f.k] }))
+                  load(f.k)
+                },
+              }, (kids.length ? (open ? '▾ ' : '▸ ') : '') + f.k + ' ' + f.name + '  ' + f.n),
+              open ? kids.map((c) => h('button', {
+                key: c.k,
+                className: 'pm-tab pm-sub' + (cur === c.k ? ' on' : ''),
+                onClick: () => load(c.k),
+              }, '└ ' + c.name + '  ' + c.n)) : null)
+          })),
         msg ? h('div', { className: 'pm-msg' }, msg) : null,
         h('div', { className: 'pm-list' },
           rows.length === 0
@@ -206,12 +249,12 @@ window.__ModuleLoader__.load({
           onMouseLeave: () => setHover(false),
           style: {
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            width: 26, height: 26, borderRadius: 8, cursor: 'pointer',
+            height: 24, padding: '0 8px', borderRadius: 6, cursor: 'pointer',
             border: '1px solid ' + (open ? 'rgba(76,139,245,.55)' : 'transparent'),
             background: open ? 'rgba(76,139,245,.16)' : (hover ? 'rgba(127,127,127,.14)' : 'transparent'),
-            color: 'inherit', fontSize: 14, lineHeight: 1, transition: 'all .12s',
+            color: 'inherit', fontSize: 12, lineHeight: 1, whiteSpace: 'nowrap', transition: 'all .12s',
           },
-        }, '🧠'),
+        }, '可塑性记忆'),
         open ? h(Overlay, { onClose: () => setOpen(false) }) : null)
     }
 

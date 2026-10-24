@@ -130,6 +130,7 @@ function readPendingList() {
         if (req.method === 'POST' && p === '/approve') { const b = await readBody(req); return json(res, 200, { ok: true, out: run(['approve', String(b.id)]) }) }
         if (req.method === 'POST' && p === '/reject') { const b = await readBody(req); return json(res, 200, { ok: true, out: run(['reject', String(b.id)]) }) }
         if (req.method === 'POST' && p === '/edit') { const b = await readBody(req); return json(res, 200, { ok: true, out: run(['edit', String(b.id), String(b.text)]) }) }
+        if (req.method === 'POST' && p === '/mk') { const b = await readBody(req); return json(res, 200, { ok: true, out: run(['mk', String(b.name), ...(b.parent ? [String(b.parent)] : [])]) }) }
         if (req.method === 'POST' && p === '/add-now') { const b = await readBody(req); return json(res, 200, { ok: true, out: run(['add-now', String(b.folder), String(b.text)]) }) }
         return json(res, 404, { ok: false, error: 'unknown' })
       } catch (e) {

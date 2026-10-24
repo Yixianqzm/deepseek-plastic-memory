@@ -89,6 +89,7 @@ function commit(k, it) {
 function cmdAdd(args, direct) {
   const f = find(args[0])
   if (!f) return console.log('无此分区：' + S.folders.map(x => x.k + x.name).join(' '))
+  if (!f.parent && S.folders.some(x => x.parent === f.k)) return console.log('主分区只放子分区，写到子分区里（如 ' + f.k + '>某子分区）')
   const t = txt(args.slice(1).join(' '))
   if (!t) return console.log('空内容不记')
   if (len(t) > MAXLEN) return console.log(`太长(${len(t)}字)，压缩到 ${MAXLEN} 字内`)
