@@ -63,10 +63,13 @@ function cmdIdx() {
 function cmdOpen(args) {
   const f = find(args[0])
   if (!f) return console.log('无此分区')
+  const all = args.includes('--all')
   const rows = readNotes(f.k)
   if (!rows.length) return console.log('空')
   const now = Date.now()
-  for (const r of rows) {
+  const show = all ? rows : rows.slice(-20)
+  if (!all && rows.length > 20) console.log(`（只给最近 20 条，共 ${rows.length} 条，要看全加 --all）`)
+  for (const r of show) {
     const d = Math.floor((now - r.ts) / DAY)
     console.log(`${r.id} ${d}d ${r.flag || '-'} ${r.text}`)
   }
