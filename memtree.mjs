@@ -114,6 +114,25 @@ function cmdEditMem(args) {
   writeNotes(f.k, rows)
   console.log('改好了')
 }
+// 时间线：一天一条，新的往当天那条后面并，不一条消息一条
+function cmdTLog(args) {
+  const f = S.folders.find(x => x.k === 'T') || find('时间线')
+  if (!f) return console.log('没有时间线分区')
+  const line = txt(args.join(' '))
+  if (!line) return console.log('要说点啥')
+  const rows = readNotes(f.k)
+  const today = new Date().toDateString()
+  const i = rows.findIndex(r => new Date(r.ts).toDateString() === today)
+  if (i >= 0) {
+    const merged = rows[i].text + '｜' + line
+    rows[i].text = merged.length > 300 ? rows[i].text : merged
+    rows[i].ts = Date.now()
+    writeNotes(f.k, rows)
+    return console.log('ok 并进今天那条')
+  }
+  writeNotes(f.k, rows.concat([{ id: shortId(), ts: Date.now(), flag: '', text: line }]))
+  console.log('ok 今天第一条')
+}
 function cmdSearch(args) {
   const q = txt(args.join(' ')).toLowerCase()
   if (!q) return console.log('给个关键词')
@@ -253,6 +272,6 @@ function cmdInit() {
   console.log('init ok ' + HOME)
 }
 const [cmd, ...args] = process.argv.slice(2)
-const MAP = { idx: cmdIdx, open: cmdOpen, add: (a) => cmdAdd(a, false), 'edit-mem': cmdEditMem, search: cmdSearch, pending: cmdPending, approve: cmdApprove, reject: cmdReject, edit: cmdEdit, done: cmdDone, rm: cmdRm, gc: cmdGc, mk: cmdMk, init: cmdInit }
+const MAP = { idx: cmdIdx, open: cmdOpen, add: (a) => cmdAdd(a, false), 'edit-mem': cmdEditMem, search: cmdSearch, tlog: cmdTLog, pending: cmdPending, approve: cmdApprove, reject: cmdReject, edit: cmdEdit, done: cmdDone, rm: cmdRm, gc: cmdGc, mk: cmdMk, init: cmdInit }
 if (!MAP[cmd]) { console.log('用法: idx|open|add|pending|approve|reject|edit|done|rm|gc|mk|init'); process.exit(1) }
 MAP[cmd](args)
