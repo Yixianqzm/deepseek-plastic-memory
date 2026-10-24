@@ -39,12 +39,24 @@ const shortId = () => (Date.now() % 36 ** 4).toString(36).padStart(4, '0')
 const txt = (s) => String(s || '').replace(/[\r\n|]+/g, ' ').trim()
 const len = (s) => [...s].length
 const S = load()
-const find = (k) => S.folders.find(f => k && (f.k === k || f.name === k))
+const find = (k) => {
+  if (!k) return undefined
+  const t = String(k).trim()
+  const m = t.match(/^([A-Za-z0-9]+)>(.+)$/)
+  if (m) {
+    const p = S.folders.find(f => f.k === m[1] || f.name === m[1])
+    if (p) return S.folders.find(f => f.parent === p.k && f.name === m[2].trim())
+  }
+  return S.folders.find(f => f.k === t || f.name === t)
+}
 function cmdIdx() {
   const out = []
-  for (const f of S.folders) {
-    const n = readNotes(f.k).length
-    out.push(`${f.k}${f.name}:${n}`)
+  const tops = S.folders.filter(f => !f.parent)
+  for (const f of tops) {
+    out.push(`${f.k}${f.name}:${readNotes(f.k).length}`)
+    for (const c of S.folders.filter(x => x.parent === f.k)) {
+      out.push(`${f.k}>${c.name}:${readNotes(c.k).length}`)
+    }
   }
   console.log(out.join(' '))
 }
@@ -186,14 +198,25 @@ function cmdGc() {
   console.log(`gc kept:${kept} trash:${gone}`)
 }
 function cmdMk(args) {
-  const name = txt(args.join(' '))
-  if (!name) return console.log('要给个名')
-  if (S.folders.length >= MAX_FOLDERS) return console.log('已满' + MAX_FOLDERS + '个')
-  if (S.folders.some(f => f.name === name)) return console.log('已有')
-  const k = 'X' + S.folders.filter(f => f.k.startsWith('X')).length
-  S.folders.push({ k, name })
+  const name = txt(args[0] || '')
+  const parentArg = txt(args[1] || '')
+  if (!name) return console.log('用法: mk <名字> [父分区]')
+  let parent = null
+  if (parentArg) {
+    parent = find(parentArg)
+    if (!parent) return console.log('没有这个父分区')
+    if (parent.parent) return console.log('最多两级，子分区不能再开子分区')
+  }
+  const tops = S.folders.filter(f => !f.parent)
+  if (!parent && tops.length >= MAX_FOLDERS) return console.log('主分区已满' + MAX_FOLDERS + '个')
+  const sameLevel = S.folders.filter(f => (f.parent || '') === (parent ? parent.k : ''))
+  if (sameLevel.some(f => f.name === name)) return console.log('这一层已有同名')
+  let k
+  if (parent) k = parent.k + '-' + (S.folders.filter(f => f.parent === parent.k).length + 1)
+  else k = 'X' + tops.filter(f => f.k.startsWith('X')).length
+  S.folders.push(parent ? { k, name, parent: parent.k } : { k, name })
   save(S); fs.mkdirSync(dirOf(k), { recursive: true })
-  console.log('ok ' + k + name)
+  console.log('ok ' + k + ' ' + (parent ? parent.name + ' / ' : '') + name)
 }
 function cmdInit() {
   fs.mkdirSync(HOME, { recursive: true })

@@ -33,7 +33,7 @@ function listFolders() {
     let n = 0
     const p = join(home, x.k, 'notes.md')
     if (existsSync(p)) n = readFileSync(p, 'utf8').split('\n').filter(Boolean).length
-    out.push({ k: x.k, name: x.name, n })
+    out.push({ k: x.k, name: x.name, n, parent: x.parent || '' })
   }
   return { home, folders: out }
 }

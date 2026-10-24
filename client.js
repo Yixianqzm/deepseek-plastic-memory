@@ -83,7 +83,7 @@ window.__ModuleLoader__.load({
           h('button', { className: 'pm-btn primary', onClick: () => setForm((v) => !v) }, form ? '收起' : '+ 记一条')),
         form ? h('div', { className: 'pm-form' },
           h('select', { className: 'pm-sel', value: k, onChange: (e) => setK(e.target.value) },
-            folders.map((f) => h('option', { key: f.k, value: f.k }, f.k + ' ' + f.name))),
+            folders.map((f) => h('option', { key: f.k, value: f.k }, f.parent ? f.parent + ' > ' + f.name : f.k + ' ' + f.name))),
           h('input', {
             className: 'pm-inp',
             placeholder: '写点什么，30 字内',
@@ -149,7 +149,7 @@ window.__ModuleLoader__.load({
           folders.map((f) => h('button', {
             key: f.k, className: 'pm-tab' + (cur === f.k ? ' on' : ''),
             onClick: () => load(f.k),
-          }, f.k + ' ' + f.name + ' ' + f.n))),
+          }, (f.parent ? f.parent + ' > ' + f.name : f.k + ' ' + f.name) + '  ' + f.n))),
         msg ? h('div', { className: 'pm-msg' }, msg) : null,
         h('div', { className: 'pm-list' },
           rows.length === 0
@@ -170,8 +170,8 @@ window.__ModuleLoader__.load({
         onClick: onClose,
         style: {
           position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.42)',
-          backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'flex-start',
-          justifyContent: 'center', padding: '10vh 16px 24px',
+          backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', padding: '24px 16px',
         },
       }, h('div', {
         onClick: (e) => e.stopPropagation(),
