@@ -382,7 +382,9 @@ window.__ModuleLoader__.load({
       return h('div', { style: { maxWidth: 780, padding: '2px 0 12px' } },
         h('div', { style: { marginBottom: 8 } },
           h('div', { style: { fontSize: 15, fontWeight: 600, marginBottom: 2 } }, '可塑性记忆'),
-          h('div', { style: { fontSize: 12, opacity: 0.6 } }, '分文件夹记事。7 天保留，7~30 天压缩，30 天进回收站；主人和约定不删。全局库和每个工作区各有一份。')),
+          h('div', { style: { fontSize: 12, opacity: 0.6 } }, '分文件夹记事。7 天保留，7~30 天压缩，30 天进回收站；主人和约定不删。全局库和每个工作区各有一份。'),
+          h('div', { style: { fontSize: 12, opacity: 0.62, marginTop: 6, lineHeight: '18px' } },
+            '小提示：觉得有必要的时候，或者在开新会话之前，先让 DSH 把当前记忆总结一遍。')),
         h(MemoryView, {}))
     }
 
