@@ -61,13 +61,14 @@ window.__ModuleLoader__.load({
       }, [])
     }
 
-    function PendingBox({ scope, folders, onChanged }) {
+    function PendingBox({ scope, scopes, folders, onChanged }) {
       const [rows, setRows] = React.useState([])
       const [msg, setMsg] = React.useState('')
       const [form, setForm] = React.useState(false)
       const [k, setK] = React.useState('')
       const [text, setText] = React.useState('')
       const [editing, setEditing] = React.useState(null)
+      const [pick, setPick] = React.useState(null) // 采纳时选记忆库：{ id, target }
       const load = React.useCallback(async () => {
         try { const d = await get('/pending', scope); setRows(d.rows || []) }
         catch (e) { setMsg(String((e && e.message) || e)) }
@@ -90,6 +91,16 @@ window.__ModuleLoader__.load({
         setText('')
         setForm(false)
       }
+      // 只有全局一个记忆库就直接采纳；有多个先问写进哪个
+      const startApprove = (r) => {
+        const list = scopes && scopes.length ? scopes : [{ id: 'global', label: '全局' }]
+        if (list.length <= 1) { act('/approve', { id: r.id }); return }
+        setPick({ id: r.id, target: scope || list[0].id })
+      }
+      const confirmApprove = async (id, target) => {
+        await act('/approve', { id, target })
+        setPick(null)
+      }
       return h('div', { className: 'pm-card' },
         h('div', { className: 'pm-head' },
           h('span', null, '待审批', h('span', { className: 'pm-badge' }, rows.length)),
@@ -106,25 +117,39 @@ window.__ModuleLoader__.load({
         msg ? h('div', { className: 'pm-msg' }, msg) : null,
         rows.length === 0
           ? h('div', { className: 'pm-empty' }, '没有待审的记忆')
-          : rows.map((r) => editing === r.id
-            ? h('div', { key: r.id, className: 'pm-form' },
-              h('span', { className: 'pm-k' }, r.k),
-              h('input', {
-                className: 'pm-inp', defaultValue: r.text, autoFocus: true,
-                id: 'pm-edit-' + r.id,
-                onKeyDown: (e) => { if (e.key === 'Enter') act('/edit', { id: r.id, text: e.currentTarget.value }) },
-              }),
-              h('button', { className: 'pm-btn', onClick: () => setEditing(null) }, '取消'),
-              h('button', {
-                className: 'pm-btn primary',
-                onClick: () => { const el = document.getElementById('pm-edit-' + r.id); act('/edit', { id: r.id, text: el && el.value }) },
-              }, '存'))
-            : h('div', { key: r.id, className: 'pm-row' },
-              h('span', { className: 'pm-k' }, r.k),
-              h('span', { className: 'pm-t', title: r.text }, r.text),
-              h('button', { className: 'pm-btn', onClick: () => setEditing(r.id) }, '改'),
-              h('button', { className: 'pm-btn', onClick: () => act('/reject', { id: r.id }) }, '驳'),
-              h('button', { className: 'pm-btn primary', onClick: () => act('/approve', { id: r.id }) }, '采纳')))
+          : rows.map((r) => {
+            const row = editing === r.id
+              ? h('div', { key: 'e' + r.id, className: 'pm-form' },
+                h('span', { className: 'pm-k' }, r.k),
+                h('input', {
+                  className: 'pm-inp', defaultValue: r.text, autoFocus: true,
+                  id: 'pm-edit-' + r.id,
+                  onKeyDown: (e) => { if (e.key === 'Enter') act('/edit', { id: r.id, text: e.currentTarget.value }) },
+                }),
+                h('button', { className: 'pm-btn', onClick: () => setEditing(null) }, '取消'),
+                h('button', {
+                  className: 'pm-btn primary',
+                  onClick: () => { const el = document.getElementById('pm-edit-' + r.id); act('/edit', { id: r.id, text: el && el.value }) },
+                }, '存'))
+              : h('div', { key: 'r' + r.id, className: 'pm-row' },
+                h('span', { className: 'pm-k' }, r.k),
+                h('span', { className: 'pm-t', title: r.text }, r.text),
+                h('button', { className: 'pm-btn', onClick: () => setEditing(r.id) }, '改'),
+                h('button', { className: 'pm-btn', onClick: () => act('/reject', { id: r.id }) }, '驳'),
+                h('button', { className: 'pm-btn primary', onClick: () => startApprove(r) }, '采纳'))
+            const chooser = pick && pick.id === r.id
+              ? h('div', { key: 'p' + r.id, className: 'pm-form' },
+                h('span', { className: 'pm-k' }, '写进'),
+                h('select', {
+                  className: 'pm-sel', value: pick.target,
+                  onChange: (e) => setPick({ id: r.id, target: e.target.value }),
+                }, (scopes && scopes.length ? scopes : [{ id: 'global', label: '全局' }])
+                  .map((s) => h('option', { key: s.id, value: s.id }, s.cwd ? s.label + '（' + s.cwd + '）' : s.label))),
+                h('button', { className: 'pm-btn', onClick: () => setPick(null) }, '取消'),
+                h('button', { className: 'pm-btn primary', onClick: () => confirmApprove(r.id, pick.target) }, '写进去'))
+              : null
+            return h(React.Fragment, { key: r.id }, row, chooser)
+          })
       )
     }
 
@@ -289,7 +314,7 @@ window.__ModuleLoader__.load({
         if (!cwd) { setMsg('填个工作区路径'); return }
         try {
           const r = await postJson('/bind', { cwd })
-          if (r.ok) { setMsg('已建 ' + r.label); setWsCwd(''); setWsOpen(false); await loadFolders() }
+          if (r.ok) { setMsg('已建 ' + r.label + (r.folders ? '，默认 ' + r.folders + ' 个分区已建好' : '')); setWsCwd(''); setWsOpen(false); await loadFolders() }
           else setMsg(r.error || '失败')
         } catch (e) { setMsg(String((e && e.message) || e)) }
       }
@@ -323,7 +348,7 @@ window.__ModuleLoader__.load({
           hits.length === 0
             ? h('div', { className: 'pm-empty' }, '没有匹配的记忆')
             : h('div', { className: 'pm-list' }, hits.map((line, i) => h('div', { key: i, className: 'pm-row' }, h('span', { className: 'pm-t' }, line))))) : null,
-        h(PendingBox, { scope, folders, onChanged: loadFolders }),
+        h(PendingBox, { scope, scopes, folders, onChanged: loadFolders }),
         h('div', { style: { display: 'flex', minHeight: 260 } },
           h(Browser, { scope, folders, cur, setCur, reload: () => loadFolders() })))
     }

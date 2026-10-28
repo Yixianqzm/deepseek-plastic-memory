@@ -55,7 +55,10 @@ function bindWorkspace(cwd) {
   mkdirSync(dir, { recursive: true })
   const meta = { cwd: String(cwd), name: basename(String(cwd)) }
   writeFileSync(join(dir, 'meta.json'), JSON.stringify(meta, null, 1), 'utf8')
-  return { ok: true, id: 'ws:' + slug, label: meta.name }
+  // 新建的记忆库直接把默认分区（M主人 P约定 C续缘 R喜好 T时间线）建出来
+  const out = runIn(['init'], 'ws:' + slug)
+  const folders = (readJson(join(dir, 'folders.json'), {}) || {}).folders || []
+  return { ok: true, id: 'ws:' + slug, label: meta.name, folders: folders.length, out }
 }
 
 function listDshWorkspaces() {
@@ -127,6 +130,48 @@ function openFolder(scope, k) {
 function readPendingList(scope) {
   const a = readJson(join(homeOf(scope), '_pending.json'), [])
   return Array.isArray(a) ? a : []
+}
+
+function writePendingList(scope, rows) {
+  const home = homeOf(scope)
+  mkdirSync(home, { recursive: true })
+  writeFileSync(join(home, '_pending.json'), JSON.stringify(rows, null, 1), 'utf8')
+}
+
+// 直接写一条已采纳的记忆（跨记忆库采纳时用，不走命令行）
+function appendMemo(scope, folderK, text, flag, ts) {
+  const home = homeOf(scope)
+  const folders = (readJson(join(home, 'folders.json'), {}) || {}).folders || []
+  const hasKids = (k) => folders.some((x) => x.parent === k)
+  let f = folders.find((x) => x.k === folderK)
+  if (f && !f.parent && hasKids(f.k)) f = folders.find((x) => x.parent === f.k)
+  if (!f) f = folders.find((x) => x.k === 'R' && !hasKids('R'))
+  if (!f) f = folders.find((x) => !x.parent && !hasKids(x.k))
+  if (!f) f = folders.find((x) => !x.parent)
+  if (!f) return { ok: false, error: '目标记忆库还没有分区' }
+  const body = String(text || '').replace(/[\r\n|]+/g, ' ').trim()
+  if (!body) return { ok: false, error: '空内容' }
+  const dir = join(home, f.k)
+  mkdirSync(dir, { recursive: true })
+  const id = Math.random().toString(36).slice(2, 6)
+  appendFileSync(join(dir, 'notes.md'), [id, ts || Date.now(), flag || '', body].join('|') + String.fromCharCode(10), 'utf8')
+  return { ok: true, k: f.k }
+}
+
+// 把待审条目采纳到指定记忆库：同库走命令行，跨库先落到目标库再删源待审
+function approveTo(sourceScope, targetScope, id) {
+  const src = sourceScope || 'global'
+  const dst = targetScope || src
+  if (dst === src) return { ok: true, out: runIn(['approve', String(id)], src) }
+  const rows = readPendingList(src)
+  const i = rows.findIndex((x) => String(x.id) === String(id))
+  if (i < 0) return { ok: false, out: '无此条' }
+  const it = rows[i]
+  const r = appendMemo(dst, it.k, it.text, it.flag, it.ts)
+  if (!r.ok) return { ok: false, out: r.error }
+  rows.splice(i, 1)
+  writePendingList(src, rows)
+  return { ok: true, out: '采纳到 ' + r.k + ' 剩' + rows.length }
 }
 
 // DSH 要求插件工具 output.schema 是 object，所以统一包一层 { text }
@@ -247,7 +292,12 @@ export function apply(ctx) {
         if (req.method === 'POST' && p === '/add-now') { const b = await readBody(req); return json(res, 200, { ok: true, out: directAdd(b.scope || qs, String(b.folder), String(b.text)) }) }
         if (req.method === 'POST' && p === '/edit-item') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['edit-mem', String(b.k), String(b.id), String(b.text)], b.scope || qs) }) }
         if (req.method === 'POST' && p === '/del-item') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['rm', String(b.k), String(b.id), 'force'], b.scope || qs) }) }
-        if (req.method === 'POST' && p === '/approve') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['approve', String(b.id)], b.scope || qs) }) }
+        if (req.method === 'POST' && p === '/approve') {
+          const b = await readBody(req)
+          const src = b.scope || qs
+          const target = b.target || src
+          return json(res, 200, { ok: true, ...approveTo(src, target, b.id) })
+        }
         if (req.method === 'POST' && p === '/reject') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['reject', String(b.id)], b.scope || qs) }) }
         if (req.method === 'POST' && p === '/edit') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['edit', String(b.id), String(b.text)], b.scope || qs) }) }
         return json(res, 404, { ok: false, error: 'unknown' })
