@@ -1,6 +1,6 @@
 {
   "name": "deepseek-plastic-memory",
-  "version": "2.1.4",
+  "version": "2.1.5",
   "description": "DeepSeek 可塑性记忆：给 DSH 用的分区式长期记忆，带遗忘曲线",
   "type": "module",
   "main": "index.js",
