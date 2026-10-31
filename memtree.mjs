@@ -209,6 +209,24 @@ function cmdRm(args) {
   writeNotes(f.k, rows)
   console.log('rm ok')
 }
+function cmdRmFolder(args) {
+  const f = find(args[0] || '')
+  if (!f) return console.log('没有这个分区')
+  const kids = S.folders.filter((x) => x.parent === f.k)
+  const all = [f, ...kids]
+  const builtin = ['M', 'P', 'C', 'R', 'T'].includes(f.k)
+  if (builtin && args[1] !== 'force') return console.log('内置分区，真要删加 force')
+  let moved = 0
+  for (const x of all) {
+    for (const r of readNotes(x.k)) { trash(x.k, r, 'rm-folder'); moved++ }
+    try { fs.rmSync(dirOf(x.k), { recursive: true, force: true }) } catch {}
+  }
+  const gone = new Set(all.map((x) => x.k))
+  S.folders = S.folders.filter((x) => !gone.has(x.k))
+  save(S)
+  console.log('rmfolder ok ' + f.k + ' 删了 ' + all.length + ' 个分区，转存 ' + moved + ' 条记忆')
+}
+
 const RULES = {
   M: { keepAll: 1 },          // 主人、以及主人下面所有子分区：只由主人手删
   P: { keepAll: 1, doneExpire: 30 }, // 约定：全留，完成的过 30 天才清
@@ -335,6 +353,33 @@ function cmdMk(args) {
   save(S); fs.mkdirSync(dirOf(k), { recursive: true })
   console.log('ok ' + k + ' ' + (parent ? parent.name + ' / ' : '') + name)
 }
+function cmdDump() {
+  const out = S.folders.map(f => ({
+    k: f.k,
+    name: f.name,
+    parent: f.parent || '',
+    memories: readNotes(f.k).map(r => ({ id: r.id, ts: r.ts, flag: r.flag, text: r.text })),
+  }))
+  console.log(JSON.stringify({ home: HOME, folders: out }))
+}
+
+function cmdMove(args) {
+  const [id, from, to] = args
+  if (!id || !from || !to) return console.log('usage: move <id> <fromK> <toK>')
+  const src = S.folders.find(f => f.k === from)
+  const dst = S.folders.find(f => f.k === to)
+  if (!src || !dst) return console.log('no such folder')
+  const a = readNotes(from)
+  const i = a.findIndex(r => r.id === id)
+  if (i < 0) return console.log('no such memory')
+  const row = a.splice(i, 1)[0]
+  writeNotes(from, a)
+  const b = readNotes(to)
+  b.push(row)
+  writeNotes(to, b)
+  console.log('ok ' + id + ' ' + from + ' -> ' + to)
+}
+
 function cmdInit() {
   fs.mkdirSync(HOME, { recursive: true })
   fs.mkdirSync(TRASH, { recursive: true })
@@ -343,6 +388,6 @@ function cmdInit() {
   console.log('init ok ' + HOME)
 }
 const [cmd, ...args] = process.argv.slice(2)
-const MAP = { idx: cmdIdx, open: cmdOpen, add: (a) => cmdAdd(a, false), 'edit-mem': cmdEditMem, search: cmdSearch, tlog: cmdTLog, pending: cmdPending, approve: cmdApprove, reject: cmdReject, edit: cmdEdit, done: cmdDone, rm: cmdRm, gc: cmdGc, mk: cmdMk, init: cmdInit, backups: cmdBackups, restore: cmdRestore }
-if (!MAP[cmd]) { console.log('用法: idx|open|add|pending|approve|reject|edit|done|rm|gc|backups|restore|mk|init'); process.exit(1) }
+const MAP = { idx: cmdIdx, open: cmdOpen, add: (a) => cmdAdd(a, false), 'edit-mem': cmdEditMem, search: cmdSearch, tlog: cmdTLog, pending: cmdPending, approve: cmdApprove, reject: cmdReject, edit: cmdEdit, done: cmdDone, rm: cmdRm, gc: cmdGc, mk: cmdMk, rmfolder: cmdRmFolder, dump: cmdDump, move: cmdMove, init: cmdInit, backups: cmdBackups, restore: cmdRestore }
+if (!MAP[cmd]) { console.log('用法: idx|open|add|pending|approve|reject|edit|done|rm|rmfolder|gc|backups|restore|mk|init'); process.exit(1) }
 MAP[cmd](args)

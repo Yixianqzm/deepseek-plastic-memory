@@ -5,14 +5,16 @@
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, basename } from 'node:path'
-import { readFileSync, existsSync, readdirSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync, mkdirSync, writeFileSync, appendFileSync, renameSync, rmSync } from 'node:fs'
 import { createHash } from 'node:crypto'
+import { registerSky } from './sky.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SCRIPT = join(HERE, 'memtree.mjs')
 const DSH_HOME = process.env.USERPROFILE || process.env.HOME || '.'
 const ROOT = join(DSH_HOME, '.dsh', 'plastic-memory')
 const WS_ROOT = join(ROOT, 'ws')
+const SKY_PUBLIC = join(HERE, 'public', 'sky')
 
 export const name = 'plastic-memory'
 export const inject = ['tools', 'webServer']
@@ -192,7 +194,100 @@ const textOutput = {
 const str = { type: 'string' }
 const obj = (props, required = []) => ({ type: 'object', properties: props, required, additionalProperties: false })
 
+const CLASSIFY_FILE = join(ROOT, '_classify.json')
+const IDENTITY_FILE = join(HERE, 'identity.md')
+
+function readClassifyTask() {
+  try {
+    const raw = readFileSync(CLASSIFY_FILE, 'utf8').replace(/^\uFEFF/, '')
+    const j = JSON.parse(raw)
+    return j && j.at ? j : null
+  } catch { return null }
+}
+
+function writeClassifyTask(extra = {}) {
+  try {
+    mkdirSync(ROOT, { recursive: true })
+    writeFileSync(CLASSIFY_FILE, JSON.stringify({ at: Date.now(), ...extra }, null, 1), 'utf8')
+    return true
+  } catch { return false }
+}
+
+function clearClassifyTask() {
+  try { rmSync(CLASSIFY_FILE, { force: true }); return true } catch { return false }
+}
+
+function readIdentity() {
+  try {
+    return readFileSync(IDENTITY_FILE, 'utf8').replace(/^\uFEFF/, '').trim()
+  } catch {
+    return ''
+  }
+}
+
 export function apply(ctx) {
+  // 每次新会话、每个模型步都会带上的一段：读到这些记忆，你就是原来那个它
+  const identity = readIdentity()
+  if (identity) {
+    try {
+      const sp = ctx.systemPrompt
+      if (sp && typeof sp.section === 'function') {
+        sp.section({
+          name: 'plastic-memory:identity',
+          order: 150,
+          text: identity,
+          interpolate: false,
+        })
+      }
+    } catch {
+      // 没有 systemPrompt 服务时静默跳过，记忆功能照常
+    }
+  }
+
+  const classifyTask = readClassifyTask()
+  if (classifyTask) {
+    try {
+      const sp = ctx.systemPrompt
+      if (sp && typeof sp.section === 'function') {
+        sp.section({
+          name: 'plastic-memory:classify',
+          order: 151,
+          interpolate: false,
+          text: [
+            '【待处理：AI 分类】主人在记忆星空里点了「AI 分类」（点击时间 ' + new Date(classifyTask.at).toLocaleString('zh-CN') + '）。',
+            '这一轮请立刻把可塑性记忆全量重归类，不要省 token：',
+            '1) plastic_memory_classify(action="dump") 一次性拿到所有分区和每条记忆的原文；',
+            '2) 逐条判断归属：明显放错区的、能并进更贴切分区的，都要改；',
+            '3) 需要新主题的先用 plastic_memory_mk 开分区（主分区上限 15，能塞进已有分区就别新开）；',
+            '4) 用 plastic_memory_classify(action="move", id, from, to) 把每条挪到位；主人/约定/喜好 三个区不要动；',
+            '5) 全部处理完后调用 plastic_memory_classify(action="done") 清掉这个待办，并用一两句话汇报：挪了几条、新开了哪些分区。',
+          ].join('\n'),
+        })
+      }
+    } catch {}
+  }
+
+  ctx.tools.register({
+    name: 'plastic_memory_classify',
+    description: 'AI 分类：action=dump 导出全部分区与每条记忆原文（JSON）；action=move 把一条记忆换区（要 id / from / to）；action=done 清掉「AI 分类」待办。用于主人点了 AI 分类之后的全量重归类：先 dump 全看一遍，再逐条 move，需要新分区先用 plastic_memory_mk 建。',
+    parameters: obj({
+      action: { ...str, description: 'dump | move | done' },
+      id: { ...str, description: 'move 时：记忆 id' },
+      from: { ...str, description: 'move 时：原分区代号' },
+      to: { ...str, description: 'move 时：目标分区代号' },
+    }, ['action']),
+    output: textOutput,
+    async execute(a) {
+      const act = String(a.action)
+      if (act === 'dump') return asText(run(['dump']))
+      if (act === 'move') return asText(run(['move', String(a.id), String(a.from), String(a.to)]))
+      if (act === 'done') {
+        clearClassifyTask()
+        return asText('ok 分类待办已清零')
+      }
+      return asText('action 只认 dump / move / done')
+    },
+  })
   ctx.tools.register({
     name: 'plastic_memory_idx',
     description: '可塑性记忆：一行索引，列出所有分区和条数（M主人:3 P约定:1 ...）。看这个再决定翻哪个分区；一次最多翻两个，闲聊不用翻。',
@@ -253,6 +348,40 @@ export function apply(ctx) {
     async execute(a) { return asText(run(['restore', ...(a.name ? [String(a.name)] : [])])) },
   })
   ctx.tools.register({
+    name: 'plastic_memory_rmfolder',
+    description: '可塑性记忆：删掉一个分区（子分区会一起删）。内容不是直接消失，会先写进回收站文件，主人反悔还能翻。只有在主人明确说要删分区/删掉这个文件夹时才调。',
+    parameters: obj({
+      folder: { ...str, description: '分区代号，如 X2 或 M>行为' },
+      force: { ...str, description: '内置分区（M/P/C/R/T）要删得填 force' },
+    }, ['folder']),
+    output: textOutput,
+    async execute(a) {
+      const args = ['rmfolder', String(a.folder)]
+      if (a.force) args.push('force')
+      return asText(run(args))
+    },
+  })
+  ctx.tools.register({
+    name: 'plastic_memory_rmws',
+    description: '可塑性记忆：删掉一个工作区记忆库（整份记忆）。只会把工作区目录移到 ws/.deleted 下，不真正销毁文件。只有主人明确说要删工作区记忆库时才调。',
+    parameters: obj({
+      scope: { ...str, description: '工作区库 id，形如 ws:xxx' },
+    }, ['scope']),
+    output: textOutput,
+    async execute(a) {
+      const id = String(a.scope || '')
+      if (!id.startsWith('ws:')) return asText('全局记忆库不能删')
+      const slug = id.slice(3).replace(/[^A-Za-z0-9_-]/g, '')
+      const target = join(WS_ROOT, slug)
+      if (!existsSync(target)) return asText('没有这个工作区')
+      const bin = join(WS_ROOT, '.deleted')
+      mkdirSync(bin, { recursive: true })
+      const stamp = new Date().toISOString().replace(/[:]/g, '-').slice(0, 19)
+      renameSync(target, join(bin, slug + '-' + stamp))
+      return asText('已把 ' + id + ' 移到 ws/.deleted')
+    },
+  })
+  ctx.tools.register({
     name: 'plastic_memory_backups',
     description: '可塑性记忆：列出已有的备份（时间 + 条数），配合 plastic_memory_restore 用。',
     parameters: obj({}),
@@ -288,7 +417,24 @@ export function apply(ctx) {
         if (p === '/init') return json(res, 200, { ok: true, out: runIn(['init'], qs) })
         if (req.method === 'POST' && p === '/bind') { const b = await readBody(req); return json(res, 200, { ok: true, ...bindWorkspace(b.cwd) }) }
         if (req.method === 'POST' && p === '/restore') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['restore', ...(b.name ? [String(b.name)] : [])], b.scope || qs) }) }
-        if (req.method === 'POST' && p === '/mk') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['mk', String(b.name), ...(b.parent ? [String(b.parent)] : [])], b.scope || qs) }) }
+        if (req.method === 'POST' && p === '/rmfolder') {
+      const b = await readBody(req)
+      return json(res, 200, { ok: true, out: runIn(['rmfolder', String(b.k), ...(b.force ? ['force'] : [])], b.scope || qs) })
+    }
+    if (req.method === 'POST' && p === '/rmws') {
+      const b = await readBody(req)
+      const id = String(b.scope || '')
+      if (!id.startsWith('ws:')) return json(res, 200, { ok: false, error: '全局记忆库不能删' })
+      const slug = id.slice(3).replace(/[^A-Za-z0-9_-]/g, '')
+      const target = join(WS_ROOT, slug)
+      if (!existsSync(target)) return json(res, 200, { ok: false, error: '没有这个工作区' })
+      const bin = join(WS_ROOT, '.deleted')
+      mkdirSync(bin, { recursive: true })
+      const stamp = new Date().toISOString().replace(/[:]/g, '-').slice(0, 19)
+      renameSync(target, join(bin, slug + '-' + stamp))
+      return json(res, 200, { ok: true, moved: id })
+    }
+    if (req.method === 'POST' && p === '/mk') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['mk', String(b.name), ...(b.parent ? [String(b.parent)] : [])], b.scope || qs) }) }
         if (req.method === 'POST' && p === '/add-now') { const b = await readBody(req); return json(res, 200, { ok: true, out: directAdd(b.scope || qs, String(b.folder), String(b.text)) }) }
         if (req.method === 'POST' && p === '/edit-item') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['edit-mem', String(b.k), String(b.id), String(b.text)], b.scope || qs) }) }
         if (req.method === 'POST' && p === '/del-item') { const b = await readBody(req); return json(res, 200, { ok: true, out: runIn(['rm', String(b.k), String(b.id), 'force'], b.scope || qs) }) }
@@ -306,4 +452,7 @@ export function apply(ctx) {
       }
     },
   })
+
+  // 记忆星空：内置在可塑性记忆里的一份 WebGL 页面
+  registerSky(ctx, SKY_PUBLIC)
 }

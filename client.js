@@ -48,6 +48,11 @@ window.__ModuleLoader__.load({
       .pm-kids .pm-tab.on { opacity: 1; }
       .pm-list { padding: 4px 6px 8px; }
       .pm-subname { opacity: .45; font-size: 11px; margin-right: 4px; }
+      .pm-overlay { position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; padding: 20px; }
+      .pm-dialog { width: min(560px, 92vw); max-height: 70vh; overflow: auto; background: var(--dsw-bg, #1d1f23); border: 1px solid var(--dsw-border, #35373c); border-radius: 12px; padding: 12px 14px; box-shadow: 0 18px 50px rgba(0,0,0,.55); }
+      .pm-dialog-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 13px; font-weight: 600; }
+      .pm-dialog-meta { font-size: 11px; opacity: .5; margin-bottom: 8px; }
+      .pm-dialog-body { font-size: 13px; line-height: 21px; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
     `
     function useCss() {
       React.useEffect(() => {
@@ -162,6 +167,8 @@ window.__ModuleLoader__.load({
       const [mkName, setMkName] = React.useState('')
       const [mkParent, setMkParent] = React.useState('')
       const [lastBk, setLastBk] = React.useState('')
+      const [rmArm, setRmArm] = React.useState('')
+      const [viewing, setViewing] = React.useState(null)
       const tops = folders.filter((f) => !f.parent)
       const subsOf = (k) => folders.filter((f) => f.parent === k)
       const loadRows = React.useCallback(async (k) => {
@@ -170,6 +177,12 @@ window.__ModuleLoader__.load({
         catch (e) { setMsg(String((e && e.message) || e)) }
       }, [scope])
       React.useEffect(() => { if (cur) loadRows(cur) }, [cur, loadRows])
+      React.useEffect(() => {
+        if (!viewing) return
+        const onKey = (e) => { if (e.key === 'Escape') setViewing(null) }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+      }, [viewing])
       const actItem = async (api, body) => {
         try { const r = await postJson(api, body, scope); setMsg(r.out || 'ok'); setEditingItem(null); await loadRows(cur); reload && reload() }
         catch (e) { setMsg(String((e && e.message) || e)) }
@@ -194,6 +207,25 @@ window.__ModuleLoader__.load({
           reload && reload()
         } catch (e) { setMsg(String((e && e.message) || e)) }
       }
+      const rmFolder = async () => {
+        if (!cur) { setMsg('先选一个分区'); return }
+        const f = folders.find((x) => x.k === cur)
+        const nm = f ? f.name : cur
+        if (rmArm !== cur) {
+          setRmArm(cur)
+          setMsg('再点一次「删分区」就真删「' + nm + '」，记忆先进回收站')
+          return
+        }
+        setRmArm('')
+        try {
+          const builtin = ['M', 'P', 'C', 'R', 'T'].includes(cur)
+          const r = await postJson('/rmfolder', { k: cur, force: builtin }, scope)
+          setMsg(r && r.ok === false ? (r.error || '没删掉') : String((r && r.out) || '已删'))
+          const left = folders.filter((x) => x.k !== cur && x.parent !== cur)
+          setCur(left.length ? left[0].k : '')
+          reload && reload()
+        } catch (e) { setMsg('删失败：' + String((e && e.message) || e)) }
+      }
       const mkSubmit = async () => {
         const nm = mkName.trim()
         if (!nm) { setMsg('先起个名'); return }
@@ -210,6 +242,10 @@ window.__ModuleLoader__.load({
           h('span', null, '记忆'),
           h('span', { style: { display: 'flex', gap: 6 } },
             h('button', { className: 'pm-btn', onClick: () => setMkOpen((v) => !v) }, '+ 分区'),
+            cur ? h('button', {
+          className: 'pm-btn' + (rmArm === cur ? ' primary' : ''),
+          onClick: rmFolder,
+        }, rmArm === cur ? '真删？' : '删分区') : null,
             h('button', { className: 'pm-btn', onClick: gc }, '跑遗忘曲线'),
             lastBk ? h('button', { className: 'pm-btn', onClick: undoGc }, '撤销清理') : null)),
         mkOpen ? h('div', { className: 'pm-form' },
@@ -268,8 +304,17 @@ window.__ModuleLoader__.load({
                 h('span', { className: 'pm-k' }, r.id),
                 h('span', { className: 'pm-t', title: r.text }, (r.flag ? r.flag + ' ' : '') + r.text),
                 h('span', { className: 'pm-k', style: { textAlign: 'right', minWidth: 30 } }, r.days + 'd'),
+                h('button', { className: 'pm-btn', onClick: () => setViewing(r) }, '查看'),
                 h('button', { className: 'pm-btn', onClick: () => setEditingItem(r.id) }, '改'),
-                h('button', { className: 'pm-btn', onClick: () => actItem('/del-item', { k: cur, id: r.id }) }, '删')))))
+                h('button', { className: 'pm-btn', onClick: () => actItem('/del-item', { k: cur, id: r.id }) }, '删')))),
+        viewing ? h('div', { className: 'pm-overlay', onClick: () => setViewing(null) },
+          h('div', { className: 'pm-dialog', onClick: (e) => e.stopPropagation() },
+            h('div', { className: 'pm-dialog-head' },
+              h('span', null, '完整记忆'),
+              h('button', { className: 'pm-btn', onClick: () => setViewing(null) }, '×')),
+            h('div', { className: 'pm-dialog-meta' },
+              (cur || '') + ' · #' + viewing.id + ' · ' + viewing.days + ' 天' + (viewing.flag ? ' · ' + viewing.flag : '')),
+            h('div', { className: 'pm-dialog-body' }, viewing.text))) : null)
     }
 
     function MemoryView() {
@@ -279,6 +324,7 @@ window.__ModuleLoader__.load({
       const [folders, setFolders] = React.useState([])
       const [cur, setCur] = React.useState('')
       const [msg, setMsg] = React.useState('')
+      const [rmWsArm, setRmWsArm] = React.useState('')
       const [wsOpen, setWsOpen] = React.useState(false)
       const [q, setQ] = React.useState('')
       const [hits, setHits] = React.useState(null)
@@ -308,7 +354,26 @@ window.__ModuleLoader__.load({
           setHits(lines[0] === '没找到' ? [] : lines)
         } catch (e) { setMsg(String((e && e.message) || e)) }
       }
-      const pickScope = (id) => { setScope(id); setCur(''); setFolders([]) }
+      const pickScope = (id) => { setScope(id); setCur(''); setFolders([]); setRmWsArm('') }
+      const rmWs = async () => {
+        if (!scope || scope === 'global') { setMsg('全局记忆库不能删'); return }
+        const one = scopes.find((x) => x.id === scope)
+        if (rmWsArm !== scope) {
+          setRmWsArm(scope)
+          setMsg('再点一次「删工作区」就真删「' + (one ? one.label : scope) + '」，会移到 ws/.deleted')
+          return
+        }
+        setRmWsArm('')
+        try {
+          const r = await postJson('/rmws', { scope }, 'global')
+          if (r.ok) {
+            setMsg('已删，移到了 ws/.deleted')
+            await loadScopes()
+            pickScope('global')
+            await loadFolders('global')
+          } else setMsg(r.error || '没删掉')
+        } catch (e) { setMsg(String((e && e.message) || e)) }
+      }
       const addWs = async () => {
         const cwd = wsCwd.trim()
         if (!cwd) { setMsg('填个工作区路径'); return }
@@ -335,6 +400,10 @@ window.__ModuleLoader__.load({
             }),
             h('button', { className: 'pm-btn', onClick: doSearch }, '搜'),
             h('button', { className: 'pm-btn', onClick: () => setWsOpen((v) => !v) }, '+ 工作区'),
+            scope !== 'global' ? h('button', {
+              className: 'pm-btn' + (rmWsArm === scope ? ' primary' : ''),
+              onClick: rmWs,
+            }, rmWsArm === scope ? '真删？' : '删工作区') : null,
             msg ? h('span', { style: { opacity: .55, fontSize: 11 } }, msg) : null)),
         wsOpen ? h('div', { className: 'pm-form' },
           h('select', { className: 'pm-sel', style: { flex: 1 }, value: wsCwd, onChange: (e) => setWsCwd(e.target.value) },
@@ -387,29 +456,58 @@ window.__ModuleLoader__.load({
     function HeaderBtn() {
       const [open, setOpen] = React.useState(false)
       const [hover, setHover] = React.useState(false)
+      const [hoverSky, setHoverSky] = React.useState(false)
       useCss()
-      return h('span', { style: { position: 'relative', display: 'inline-flex' } },
+      const openSky = () => {
+        fetch('/api/memory-sky/open', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ scope: 'global' }),
+        }).catch(() => {})
+      }
+      const base = {
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        height: 24, padding: '0 8px', borderRadius: 6, cursor: 'pointer',
+        color: 'inherit', fontSize: 12, lineHeight: 1, whiteSpace: 'nowrap', transition: 'all .12s',
+      }
+      return h('span', { style: { position: 'relative', display: 'inline-flex', gap: 6 } },
         h('button', {
           title: '可塑性记忆',
           onClick: () => setOpen((v) => !v),
           onMouseEnter: () => setHover(true),
           onMouseLeave: () => setHover(false),
           style: {
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            height: 24, padding: '0 8px', borderRadius: 6, cursor: 'pointer',
+            ...base,
             border: '1px solid ' + (open ? 'rgba(76,139,245,.55)' : 'transparent'),
             background: open ? 'rgba(76,139,245,.16)' : (hover ? 'rgba(127,127,127,.14)' : 'transparent'),
-            color: 'inherit', fontSize: 12, lineHeight: 1, whiteSpace: 'nowrap', transition: 'all .12s',
           },
         }, '可塑性记忆'),
+        h('button', {
+          title: '打开记忆星空（本地 Edge）',
+          onClick: openSky,
+          onMouseEnter: () => setHoverSky(true),
+          onMouseLeave: () => setHoverSky(false),
+          style: {
+            ...base,
+            border: '1px solid transparent',
+            background: hoverSky ? 'rgba(127,127,127,.14)' : 'transparent',
+          },
+        }, '记忆星空'),
         open ? h(Overlay, { onClose: () => setOpen(false) }) : null)
     }
 
     function Panel() {
+      const openSky = () => {
+        fetch('/api/memory-sky/open', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ scope: 'global' }),
+        }).catch(() => {})
+      }
       return h('div', { style: { maxWidth: 780, padding: '2px 0 12px' } },
-        h('div', { style: { marginBottom: 8 } },
-          h('div', { style: { fontSize: 15, fontWeight: 600, marginBottom: 2 } }, '可塑性记忆'),
-          h('div', { style: { fontSize: 12, opacity: 0.6 } }, '分文件夹记事。7 天保留，7~30 天压缩，30 天进回收站；主人和约定不删。全局库和每个工作区各有一份。')),
+        h('div', { style: { marginBottom: 8, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 } },
+          h('div', null,
+            h('div', { style: { fontSize: 15, fontWeight: 600, marginBottom: 2 } }, '可塑性记忆'),
+            h('div', { style: { fontSize: 12, opacity: 0.6 } }, '分文件夹记事。7 天保留，7~30 天压缩，30 天进回收站；主人和约定不删。全局库和每个工作区各有一份。')),
+          h('button', { className: 'pm-btn primary', onClick: openSky, style: { flex: '0 0 auto', marginTop: 2 } }, '记忆星空')),
         h(MemoryView, {}))
     }
 
