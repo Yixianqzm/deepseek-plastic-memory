@@ -217,6 +217,31 @@ function clearClassifyTask() {
   try { rmSync(CLASSIFY_FILE, { force: true }); return true } catch { return false }
 }
 
+function readAllMemoriesText() {
+  try {
+    const j = JSON.parse(readFileSync(join(ROOT, 'folders.json'), 'utf8').replace(/^\uFEFF/, ''))
+    const folders = Array.isArray(j.folders) ? j.folders : []
+    const lines = []
+    for (const f of folders) {
+      const file = join(ROOT, f.k, 'notes.md')
+      if (!existsSync(file)) continue
+      const rows = readFileSync(file, 'utf8').replace(/^\uFEFF/, '').split('\n').filter(Boolean)
+      if (!rows.length) continue
+      lines.push('## ' + (f.parent ? f.parent + '>' : '') + f.name + ' (' + f.k + ')')
+      for (const row of rows) {
+        const [id, , flag, ...rest] = row.split('|')
+        const mark = flag === '*' ? ' [重要]' : flag === '✓' ? ' [完成]' : ''
+        lines.push((id || '') + mark + ' ' + rest.join('|'))
+      }
+      lines.push('')
+    }
+    const txt = lines.join('\n').trim()
+    return txt.length > 200000 ? txt.slice(0, 200000) + '\n…（已截断）' : txt
+  } catch {
+    return ''
+  }
+}
+
 function readIdentity() {
   try {
     return readFileSync(IDENTITY_FILE, 'utf8').replace(/^\uFEFF/, '').trim()
@@ -246,7 +271,7 @@ export function apply(ctx) {
 
   // 全量记忆：每次会话都带上，模型不用再去挑分区
   try {
-    const dump = run(['all'])
+    const dump = readAllMemoriesText()
     const sp = ctx.systemPrompt
     if (sp && typeof sp.section === 'function' && dump && dump !== '(空)') {
       sp.section({
