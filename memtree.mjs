@@ -136,17 +136,23 @@ function cmdTLog(args) {
   console.log('ok 今天第一条')
 }
 function cmdSearch(args) {
-  const q = txt(args.join(' ')).toLowerCase()
-  if (!q) return console.log('给个关键词')
+  const raw = txt(args.join(' '))
+  if (!raw) return console.log('给个关键词')
+  // 按空格拆成多个词，每个词都只要"包含"即可（搜半个词、单个字也能命中）
+  const terms = raw.toLowerCase().split(/\s+/).filter(Boolean)
+  const hit = (text) => {
+    const t = String(text || '').toLowerCase()
+    return terms.every((w) => t.includes(w))
+  }
   const hits = []
   for (const f of S.folders) {
     const tag = f.parent ? f.parent + '>' + f.name : f.k + f.name
     for (const r of readNotes(f.k)) {
-      if ((r.text || '').toLowerCase().includes(q)) hits.push(tag + ' ' + r.id + ' ' + (r.flag ? r.flag + ' ' : '') + r.text)
+      if (hit(r.text)) hits.push(tag + ' ' + r.id + ' ' + (r.flag ? r.flag + ' ' : '') + r.text)
     }
   }
   for (const x of readPending()) {
-    if ((x.text || '').toLowerCase().includes(q)) hits.push('待审 ' + x.id + ' ' + x.text)
+    if (hit(x.text)) hits.push('待审 ' + x.id + ' ' + x.text)
   }
   console.log(hits.length ? hits.join(String.fromCharCode(10)) : '没找到')
 }

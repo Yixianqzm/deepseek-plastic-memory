@@ -1985,11 +1985,13 @@ function renderCurve() {
 let searchTimer = 0
 function onSearch(q) {
   state.query = q.trim().toLowerCase()
+  const terms = state.query.split(/\s+/).filter(Boolean)
   state.matches = new Set()
-  if (state.query) {
+  if (terms.length) {
+    // 按词/字匹配：每个词只要出现在正文、分区名、主分区名里就算命中，不用搜整段
     for (const m of state.memories) {
       const hay = `${m.text || ''} ${m.folderName || ''} ${m.mainName || ''}`.toLowerCase()
-      if (hay.includes(state.query)) state.matches.add(m.id)
+      if (terms.every((w) => hay.includes(w))) state.matches.add(m.id)
     }
   }
   setHot(state.query ? state.matches : (state.viewingMem ? [state.viewingMem.id] : null), 0.95)
