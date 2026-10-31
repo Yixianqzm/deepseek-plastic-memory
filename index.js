@@ -244,6 +244,22 @@ export function apply(ctx) {
     }
   }
 
+  // 全量记忆：每次会话都带上，模型不用再去挑分区
+  try {
+    const dump = run(['all'])
+    const sp = ctx.systemPrompt
+    if (sp && typeof sp.section === 'function' && dump && dump !== '(空)') {
+      sp.section({
+        name: 'plastic-memory:all',
+        order: 149,
+        interpolate: false,
+        text: ['【可塑性记忆 · 全量】下面是这台机器上的全部记忆（已按分区排好）：', '', dump].join('\n'),
+      })
+    }
+  } catch (e) {
+    // 读不到就静默跳过，别影响对话
+  }
+
   const classifyTask = readClassifyTask()
   if (classifyTask) {
     try {
