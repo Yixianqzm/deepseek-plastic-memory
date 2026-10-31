@@ -289,8 +289,15 @@ export function apply(ctx) {
     },
   })
   ctx.tools.register({
+    name: 'plastic_memory_all',
+    description: '可塑性记忆：一次性读出全部记忆（所有分区 + 待审），直接从这一份里找你需要的东西，不要再用 idx 挑分区。每次需要回忆主人信息/约定/上次聊到哪，都先调这个全量读一遍。',
+    parameters: obj({}),
+    output: textOutput,
+    async execute() { return asText(run(['all'])) },
+  })
+  ctx.tools.register({
     name: 'plastic_memory_idx',
-    description: '可塑性记忆：一行索引，列出所有分区和条数（M主人:3 P约定:1 ...）。看这个再决定翻哪个分区；一次最多翻两个，闲聊不用翻。',
+    description: '可塑性记忆：一行索引，只列分区和条数（想看结构时用）。要看内容请直接用 plastic_memory_all 全量读，不要靠 idx 挑分区。',
     parameters: obj({}),
     output: textOutput,
     async execute() { return asText(run(['idx'])) },

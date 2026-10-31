@@ -380,6 +380,27 @@ function cmdMove(args) {
   console.log('ok ' + id + ' ' + from + ' -> ' + to)
 }
 
+function cmdAll() {
+  const out = []
+  for (const f of S.folders) {
+    const rows = readNotes(f.k)
+    if (!rows.length) continue
+    const tag = f.parent ? (S.folders.find(x => x.k === f.parent)?.name || f.parent) + '>' + f.name : f.name
+    out.push('## ' + tag + ' (' + f.k + ')')
+    for (const r of rows) {
+      const flag = r.flag === '*' ? ' [重要]' : r.flag === '✓' ? ' [完成]' : ''
+      out.push(r.id + flag + ' ' + r.text)
+    }
+    out.push('')
+  }
+  const pend = readPending()
+  if (pend.length) {
+    out.push('## 待审 (' + pend.length + ' 条)')
+    for (const x of pend) out.push(x.id + ' ' + x.text)
+  }
+  console.log(out.length ? out.join(String.fromCharCode(10)) : '还没有记忆')
+}
+
 function cmdInit() {
   fs.mkdirSync(HOME, { recursive: true })
   fs.mkdirSync(TRASH, { recursive: true })
@@ -388,6 +409,6 @@ function cmdInit() {
   console.log('init ok ' + HOME)
 }
 const [cmd, ...args] = process.argv.slice(2)
-const MAP = { idx: cmdIdx, open: cmdOpen, add: (a) => cmdAdd(a, false), 'edit-mem': cmdEditMem, search: cmdSearch, tlog: cmdTLog, pending: cmdPending, approve: cmdApprove, reject: cmdReject, edit: cmdEdit, done: cmdDone, rm: cmdRm, gc: cmdGc, mk: cmdMk, rmfolder: cmdRmFolder, dump: cmdDump, move: cmdMove, init: cmdInit, backups: cmdBackups, restore: cmdRestore }
+const MAP = { idx: cmdIdx, open: cmdOpen, add: (a) => cmdAdd(a, false), 'edit-mem': cmdEditMem, search: cmdSearch, tlog: cmdTLog, pending: cmdPending, approve: cmdApprove, reject: cmdReject, edit: cmdEdit, done: cmdDone, rm: cmdRm, gc: cmdGc, mk: cmdMk, rmfolder: cmdRmFolder, dump: cmdDump, move: cmdMove, all: cmdAll, init: cmdInit, backups: cmdBackups, restore: cmdRestore }
 if (!MAP[cmd]) { console.log('用法: idx|open|add|pending|approve|reject|edit|done|rm|rmfolder|gc|backups|restore|mk|init'); process.exit(1) }
 MAP[cmd](args)
