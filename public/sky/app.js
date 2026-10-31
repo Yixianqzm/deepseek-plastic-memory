@@ -1613,26 +1613,30 @@ function applyThemeGlyphs() {
 
 function applyDim() {
   const sel = state.sel
+  const searching = !!state.query
   // 只有选中「星辰」才虚化别的星云；点开一条记忆不动星系明暗
   const starSel = sel && (sel.kind === 'main' || sel.kind === 'sub')
   const focusK = starSel ? (sel.kind === 'main' ? sel.k : (subs.get(sel.k)?.parentK || '')) : ''
   const focusMain = focusK ? (subs.has(focusK) ? subs.get(focusK).parentK : focusK) : ''
 
+  // 搜索是全局的：不管当前选中了哪个分区，命中的记忆都要亮起来
   for (const [k, node] of mains) {
+    if (searching) { node.dimTarget = 0.5; continue }
     const related = !focusMain || k === focusMain
     node.dimTarget = related ? 1 : 0.16
   }
   for (const [k, node] of subs) {
+    if (searching) { node.dimTarget = 0.4; continue }
     const related = !focusMain || node.parentK === focusMain
     const onPath = sel && sel.kind === 'sub' ? sel.k === k : related
     node.dimTarget = onPath ? 1 : (related ? 0.55 : 0.12)
   }
-  const dimMem = !!focusMain || state.pinnedOnly || !!state.query
+  const dimMem = !!focusMain || state.pinnedOnly || searching
   const onlyMem = !!(sel && sel.kind === 'mem')
   for (const [id, node] of mems) {
     let target = 1
-    if (state.pinnedOnly && !node.mem.pinned) target = 0.15
-    else if (state.query) target = state.matches.has(id) ? 1 : 0.12
+    if (searching) target = state.matches.has(id) ? 1 : 0.1
+    else if (state.pinnedOnly && !node.mem.pinned) target = 0.15
     else if (onlyMem) target = sel.id === id ? 1 : 0.55
     else if (focusMain && node.folder !== focusK && !(subs.has(node.folder) && subs.get(node.folder).parentK === focusMain)) target = 0.18
     node.dimTarget = dimMem || sel ? target : 1
@@ -2283,7 +2287,15 @@ async function boot() {
         } else toast(r.error || '没删掉', 'bad')
       })
     }
-    $('search').addEventListener('input', (e) => {
+    $('search').addEventListener('focus', () => {
+    if (state.sel && state.sel.kind !== 'mem') {
+      state.sel = null
+      applyDim()
+      renderPanel()
+    }
+  })
+
+  $('search').addEventListener('input', (e) => {
       clearTimeout(searchTimer)
       const v = e.target.value
       searchTimer = setTimeout(() => onSearch(v), 130)
