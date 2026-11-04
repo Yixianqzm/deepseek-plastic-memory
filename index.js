@@ -260,7 +260,7 @@ export function apply(ctx) {
         sp.section({
           name: 'plastic-memory:identity',
           order: 150,
-          text: identity,
+          text: () => readIdentity() || '',
           interpolate: false,
         })
       }
@@ -271,14 +271,18 @@ export function apply(ctx) {
 
   // 全量记忆：每次会话都带上，模型不用再去挑分区
   try {
-    const dump = readAllMemoriesText()
     const sp = ctx.systemPrompt
-    if (sp && typeof sp.section === 'function' && dump && dump !== '(空)') {
+    if (sp && typeof sp.section === 'function') {
       sp.section({
         name: 'plastic-memory:all',
         order: 149,
         interpolate: false,
-        text: ['【可塑性记忆 · 全量】下面是这台机器上的全部记忆（已按分区排好）：', '', dump].join('\n'),
+        text: () => {
+          const NL2 = String.fromCharCode(10)
+          const dumpNow = readAllMemoriesText()
+          if (!dumpNow || dumpNow === '(空)') return ''
+          return ['【可塑性记忆 · 全量】下面是这台机器上的全部记忆（已按分区排好）：', '', dumpNow].join(NL2)
+        },
       })
     }
   } catch (e) {
