@@ -17,37 +17,68 @@ window.__ModuleLoader__.load({
     }).then((r) => r.json())
 
     const CSS = `
-      .pm-root { display: flex; flex-direction: column; gap: 10px; }
-      .pm-card { border: 1px solid var(--dsw-border, #333); border-radius: 10px; overflow: hidden; }
-      .pm-head { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; font-size: 13px; font-weight: 600; background: color-mix(in srgb, currentColor 6%, transparent); }
-      .pm-badge { font-size: 11px; font-weight: 500; opacity: .7; margin-left: 6px; }
-      .pm-row { display: flex; align-items: center; gap: 8px; padding: 6px 12px; font-size: 13px; border-top: 1px solid color-mix(in srgb, currentColor 10%, transparent); }
+      .pm-root { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 880px; margin: 0 auto; }
+
+      .pm-card { border: 1px solid var(--dsw-border, #333); border-radius: 12px; overflow: hidden; background: color-mix(in srgb, currentColor 2%, transparent); }
+      .pm-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; font-size: 13px; font-weight: 600; background: color-mix(in srgb, currentColor 6%, transparent); }
+      .pm-badge { font-size: 11px; font-weight: 500; opacity: .65; margin-left: 6px; }
+
+      /* 顶部工具条：一行放不下就换行，不许把别的控件挤没 */
+      .pm-scope { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; font-size: 12px; }
+      .pm-scope > .pm-sel { max-width: 260px; }
+      .pm-scope > .pm-inp { flex: 1 1 180px; min-width: 140px; }
+      .pm-tools { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 0 14px 10px; }
+      .pm-hint { font-size: 11.5px; opacity: .45; line-height: 1.7; padding: 0 2px; }
+
+      /* 行 */
+      .pm-row { display: flex; align-items: center; gap: 8px; padding: 7px 14px; font-size: 13px; border-top: 1px solid color-mix(in srgb, currentColor 8%, transparent); }
       .pm-row:hover { background: color-mix(in srgb, currentColor 4%, transparent); }
-      .pm-k { flex: 0 0 auto; font-size: 11px; opacity: .55; min-width: 42px; }
+      .pm-list { padding: 0 0 6px; }
+      .pm-list > .pm-row:first-child { border-top: none; }
+
+      /* 记忆浏览：左分区、右内容 */
+      .pm-body { display: grid; grid-template-columns: 184px minmax(0, 1fr); align-items: start; }
+      .pm-side { min-width: 0; align-self: stretch; border-right: 1px solid color-mix(in srgb, currentColor 8%, transparent); }
+      .pm-main { min-width: 0; display: flex; flex-direction: column; }
+      .pm-main > .pm-emo:first-child { border-top: none; }
+      @media (max-width: 660px) {
+        .pm-body { grid-template-columns: 1fr; }
+        .pm-side { border-right: none; border-bottom: 1px solid color-mix(in srgb, currentColor 8%, transparent); }
+      }
+
+      /* 情绪推理块 */
+      .pm-emo-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+      .pm-emo-row > .pm-btn:last-child { margin-left: 0; }
+      .pm-emo-pre { white-space: pre-wrap; font-size: 11.5px; margin: 0; opacity: .8; font-family: inherit; line-height: 1.65; }
+      .pm-k { flex: 0 0 auto; font-size: 11px; opacity: .5; min-width: 40px; }
       .pm-t { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .pm-empty { padding: 10px 12px; font-size: 12px; opacity: .45; }
-      .pm-btn { border: 1px solid var(--dsw-border, #3a3a3a); background: transparent; color: inherit; border-radius: 6px; font-size: 11px; padding: 2px 8px; cursor: pointer; opacity: .85; transition: .12s; }
+      .pm-empty { padding: 12px 14px; font-size: 12px; opacity: .42; }
+
+      /* 控件 */
+      .pm-btn { border: 1px solid var(--dsw-border, #3a3a3a); background: transparent; color: inherit; border-radius: 7px; font-size: 11.5px; padding: 3px 9px; cursor: pointer; opacity: .82; transition: .12s; white-space: nowrap; }
       .pm-btn:hover { opacity: 1; background: color-mix(in srgb, currentColor 8%, transparent); }
       .pm-btn.primary { border-color: #4c8bf5; color: #6aa6ff; }
       .pm-btn.primary:hover { background: rgba(76,139,245,.14); }
-      .pm-form { display: flex; gap: 6px; padding: 10px 12px; border-top: 1px solid color-mix(in srgb, currentColor 10%, transparent); }
-      .pm-sel, .pm-inp { background: color-mix(in srgb, currentColor 5%, transparent); border: 1px solid var(--dsw-border, #3a3a3a); border-radius: 6px; color: inherit; font-size: 12px; padding: 5px 8px; outline: none; }
+      .pm-sel, .pm-inp { background: color-mix(in srgb, currentColor 5%, transparent); border: 1px solid var(--dsw-border, #3a3a3a); border-radius: 7px; color: inherit; font-size: 12px; padding: 6px 9px; outline: none; min-height: 30px; box-sizing: border-box; }
       .pm-inp { flex: 1 1 auto; min-width: 0; }
       .pm-inp:focus, .pm-sel:focus { border-color: #4c8bf5; }
-      .pm-msg { font-size: 11px; opacity: .55; padding: 0 12px 8px; }
-      .pm-scope { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid color-mix(in srgb, currentColor 10%, transparent); font-size: 12px; }
-      .pm-scope .pm-sel { padding: 3px 8px; font-size: 12px; }
-      .pm-tabs { display: flex; flex-direction: column; gap: 2px; padding: 8px 8px 4px; }
-      .pm-tab { border: none; background: transparent; color: inherit; font-size: 12.5px; padding: 5px 10px; border-radius: 7px; cursor: pointer; opacity: .7; text-align: left; display: flex; align-items: center; gap: 6px; }
+      .pm-form { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 10px 14px; border-top: 1px solid color-mix(in srgb, currentColor 10%, transparent); }
+      .pm-form > .pm-sel { max-width: 220px; flex: 0 1 auto; }
+      .pm-form > .pm-inp { flex: 1 1 200px; min-width: 140px; }
+      .pm-msg { font-size: 11.5px; opacity: .55; padding: 0 14px 9px; margin: 0; }
+
+      /* 分区侧栏 */
+      .pm-tabs { display: flex; flex-direction: column; gap: 2px; padding: 10px 10px 6px; }
+      .pm-tab { border: none; background: transparent; color: inherit; font-size: 12.5px; padding: 6px 10px; border-radius: 8px; cursor: pointer; opacity: .7; text-align: left; display: flex; align-items: center; gap: 6px; }
       .pm-tab:hover { opacity: 1; background: color-mix(in srgb, currentColor 6%, transparent); }
       .pm-tab.on { opacity: 1; background: color-mix(in srgb, currentColor 11%, transparent); font-weight: 600; }
-      .pm-tab .pm-caret { width: 12px; opacity: .6; }
+      .pm-tab .pm-caret { width: 12px; opacity: .6; flex: 0 0 auto; }
       .pm-tab .pm-count { margin-left: auto; opacity: .45; font-size: 11px; }
-      .pm-kids { margin: 0 0 2px 20px; padding-left: 10px; border-left: 2px solid color-mix(in srgb, currentColor 16%, transparent); display: flex; flex-direction: column; gap: 1px; }
+      .pm-kids { margin: 0 0 2px 18px; padding-left: 10px; border-left: 2px solid color-mix(in srgb, currentColor 16%, transparent); display: flex; flex-direction: column; gap: 1px; }
       .pm-kids .pm-tab { font-size: 12px; opacity: .65; }
       .pm-kids .pm-tab.on { opacity: 1; }
-      .pm-list { padding: 4px 6px 8px; }
       .pm-subname { opacity: .45; font-size: 11px; margin-right: 4px; }
+
       .pm-overlay { position: fixed; inset: 0; z-index: 10000; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; padding: 20px; }
       .pm-dialog { width: min(560px, 92vw); max-height: 70vh; overflow: auto; background: var(--dsw-bg, #1d1f23); border: 1px solid var(--dsw-border, #35373c); border-radius: 12px; padding: 12px 14px; box-shadow: 0 18px 50px rgba(0,0,0,.55); }
       .pm-dialog-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 13px; font-weight: 600; }
@@ -74,25 +105,54 @@ window.__ModuleLoader__.load({
       const [text, setText] = React.useState('')
       const [editing, setEditing] = React.useState(null)
       const [pick, setPick] = React.useState(null) // 采纳时选记忆库：{ id, target }
+      const [block, setBlock] = React.useState('')  // 写进主分区被挡下的原因（弹窗）
+      const [target, setTarget] = React.useState('')      // 「+ 记一条」写进哪个库
+      const [tFolders, setTFolders] = React.useState(null) // 目标库的分区（换库时重取）
       const load = React.useCallback(async () => {
         try { const d = await get('/pending', scope); setRows(d.rows || []) }
         catch (e) { setMsg(String((e && e.message) || e)) }
       }, [scope])
       React.useEffect(() => { load() }, [load])
       React.useEffect(() => { if (!k && folders.length) setK(folders[0].k) }, [folders])
-      const act = async (api, body) => {
+      // 目标库跟当前浏览库不一致时，把那个库的分区取过来
+      const to = target || scope
+      React.useEffect(() => {
+        if (!form) return
+        if (to === scope) { setTFolders(null); return }
+        let dead = false
+        get('/list', to).then((r) => {
+          if (dead) return
+          const fs2 = r.folders || []
+          setTFolders(fs2)
+          if (fs2.length && !fs2.some((x) => x.k === k)) setK(fs2[0].k)
+        }).catch(() => { if (!dead) setTFolders([]) })
+        return () => { dead = true }
+      }, [form, to, scope, k])
+      const pickTarget = async (id) => {
+        const one = (scopes || []).find((x) => x.id === id)
+        if (one && one.pending && one.cwd) {
+          // 这个工作区还没建库：先建出来，再往里写
+          try { await postJson('/bind', { cwd: one.cwd }, 'global') } catch (e) { setMsg(String((e && e.message) || e)) }
+        }
+        setTarget(id)
+      }
+      const act = async (api, body, sc) => {
         try {
-          const r = await postJson(api, body, scope)
+          const r = await postJson(api, body, sc || scope)
+          // 后端挡住（写进有子分区的主分区不算生效）：弹窗讲清楚，别当成成功
+          if (r.blocked) { setBlock(String(r.reason || '这条路写不进去')); return false }
           setMsg(r.out || 'ok')
           await load()
           setEditing(null)
           onChanged && onChanged()
-        } catch (e) { setMsg(String((e && e.message) || e)) }
+          return true
+        } catch (e) { setMsg(String((e && e.message) || e)); return false }
       }
       const submit = async () => {
         const t = text.trim()
         if (!t) { setMsg('先写点啥'); return }
-        await act('/add-now', { folder: k, text: t })
+        const done = await act('/add-now', { folder: k, text: t }, to)
+        if (!done) return   // 被挡下就保留表单和内容，别清空
         setText('')
         setForm(false)
       }
@@ -111,8 +171,14 @@ window.__ModuleLoader__.load({
           h('span', null, '待审批', h('span', { className: 'pm-badge' }, rows.length)),
           h('button', { className: 'pm-btn primary', onClick: () => setForm((v) => !v) }, form ? '收起' : '+ 记一条')),
         form ? h('div', { className: 'pm-form' },
+          h('select', {
+            className: 'pm-sel', value: to, onChange: (e) => pickTarget(e.target.value),
+            title: '写进哪个记忆库',
+          }, (scopes && scopes.length ? scopes : [{ id: 'global', label: '全局' }])
+            .map((s) => h('option', { key: s.id, value: s.id }, '写入 ' + s.label))),
           h('select', { className: 'pm-sel', value: k, onChange: (e) => setK(e.target.value) },
-            folders.map((f) => h('option', { key: f.k, value: f.k }, f.parent ? f.parent + ' › ' + f.name : f.k + ' ' + f.name))),
+            ((tFolders || folders).length ? (tFolders || folders) : [{ k: '', name: '（这个库还没分区）', parent: '' }])
+              .map((f) => h('option', { key: f.k, value: f.k }, f.parent ? f.parent + ' › ' + f.name : f.k + ' ' + f.name))),
           h('input', {
             className: 'pm-inp', placeholder: '写点什么，越短越好', value: text, autoFocus: true,
             onChange: (e) => setText(e.target.value),
@@ -149,13 +215,77 @@ window.__ModuleLoader__.load({
                   className: 'pm-sel', value: pick.target,
                   onChange: (e) => setPick({ id: r.id, target: e.target.value }),
                 }, (scopes && scopes.length ? scopes : [{ id: 'global', label: '全局' }])
-                  .map((s) => h('option', { key: s.id, value: s.id }, s.cwd ? s.label + '（' + s.cwd + '）' : s.label))),
+                  .map((s) => h('option', { key: s.id, value: s.id, title: s.cwd || '' }, s.label))),
                 h('button', { className: 'pm-btn', onClick: () => setPick(null) }, '取消'),
                 h('button', { className: 'pm-btn primary', onClick: () => confirmApprove(r.id, pick.target) }, '写进去'))
               : null
             return h(React.Fragment, { key: r.id }, row, chooser)
           })
+        ,
+        block ? h('div', { className: 'pm-overlay', onClick: () => setBlock('') },
+          h('div', {
+            className: 'pm-dialog',
+            style: { width: 'auto', padding: '18px 28px', textAlign: 'center', fontSize: 14, cursor: 'default' },
+            onClick: (e) => e.stopPropagation(),
+          }, '操作不合法')) : null
       )
+    }
+
+    // 情绪推理入口：右上角一个按钮，点开是独立小窗
+    function EmoButton({ scope }) {
+      const [on, setOn] = React.useState(true)
+      const [host, setHost] = React.useState(null)
+      const [open, setOpen] = React.useState(false)
+      const [depsOut, setDepsOut] = React.useState('')
+      const [msg, setMsg] = React.useState('')
+      React.useEffect(() => {
+        get('/emotion-config').then((o) => {
+          setOn(o.enabled !== false)
+          setHost(o.host || null)
+        }).catch(() => {})
+      }, [scope])
+      const checkDeps = async () => {
+        setDepsOut('检测中…')
+        try { const r = await get('/emotion-deps', scope); setDepsOut(r.out || 'ok') }
+        catch (e) { setDepsOut(String((e && e.message) || e)) }
+      }
+      const toggle = async () => {
+        const next = !on
+        try {
+          const r = await postJson('/emotion-config', { enabled: next }, scope)
+          const real = r.enabled !== false
+          setOn(real)
+          setMsg(r.ok === false
+            ? '没写进去（配置文件写失败）'
+            : (real ? '已开启，下一轮对话开始生效' : '已关闭，下一轮对话开始生效'))
+        } catch (e) { setMsg('出错：' + String((e && e.message) || e)) }
+      }
+      return h(React.Fragment, null,
+        h('button', {
+          className: 'pm-btn' + (on ? ' primary' : ''),
+          onClick: () => { setMsg(''); setOpen(true) },
+        }, '情绪推理'),
+        open ? h('div', { className: 'pm-overlay', onClick: () => setOpen(false) },
+          h('div', {
+            className: 'pm-dialog', onClick: (e) => e.stopPropagation(),
+            style: { width: 'min(460px, 92vw)' },
+          },
+            h('div', { className: 'pm-dialog-head' },
+              h('span', null, '情绪推理'),
+              h('button', { className: 'pm-btn', onClick: () => setOpen(false) }, '×')),
+            h('div', { className: 'pm-dialog-meta' },
+              on ? '开 —— 每次回话前先判一次，结果当作语境用' : '关 —— 不推理（下一轮对话开始生效）'),
+            h('div', { className: 'pm-emo-row', style: { marginBottom: 10 } },
+              h('button', { className: 'pm-btn' + (on ? '' : ' primary'), onClick: toggle }, on ? '关闭' : '开启'),
+              h('button', { className: 'pm-btn', onClick: checkDeps }, '检测依赖')),
+            h('div', { className: 'pm-dialog-meta', style: { marginBottom: 4 } },
+              host
+                ? '跟随会话模型：' + (host.provider ? host.provider + ' / ' : '') + (host.model || '没读到')
+                : '跟随会话模型'),
+            h('div', { className: 'pm-dialog-meta', style: { marginBottom: 8 } },
+              '内联 —— 判据和记忆直接进提示词，不另发请求'),
+            msg ? h('div', { className: 'pm-dialog-meta', style: { color: msg.indexOf('没写进去') === 0 ? '#e08080' : '#7eae7e' } }, msg) : null,
+            depsOut ? h('pre', { className: 'pm-emo-pre' }, depsOut) : null)) : null)
     }
 
     function Browser({ scope, folders, cur, setCur, reload }) {
@@ -237,10 +367,10 @@ window.__ModuleLoader__.load({
           reload && reload()
         } catch (e) { setMsg(String((e && e.message) || e)) }
       }
-      return h('div', { className: 'pm-card', style: { flex: 1, minWidth: 0 } },
+      return h('div', { className: 'pm-card' },
         h('div', { className: 'pm-head' },
-          h('span', null, '记忆'),
-          h('span', { style: { display: 'flex', gap: 6 } },
+          h('span', null, '记忆', cur ? h('span', { className: 'pm-badge' }, cur) : null),
+          h('span', { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
             h('button', { className: 'pm-btn', onClick: () => setMkOpen((v) => !v) }, '+ 分区'),
             cur ? h('button', {
           className: 'pm-btn' + (rmArm === cur ? ' primary' : ''),
@@ -258,6 +388,8 @@ window.__ModuleLoader__.load({
             onKeyDown: (e) => { if (e.key === 'Enter') mkSubmit() },
           }),
           h('button', { className: 'pm-btn primary', onClick: mkSubmit }, '建')) : null,
+        h('div', { className: 'pm-body' },
+          h('div', { className: 'pm-side' },
         h('div', { className: 'pm-tabs' },
           tops.map((f) => {
             const kids = subsOf(f.k)
@@ -282,7 +414,8 @@ window.__ModuleLoader__.load({
                 h('span', { className: 'pm-subname' }, f.name + ' ›'),
                 h('span', null, c.name),
                 h('span', { className: 'pm-count' }, c.n)))) : null)
-          })),
+          }))),
+          h('div', { className: 'pm-main' },
         msg ? h('div', { className: 'pm-msg' }, msg) : null,
         h('div', { className: 'pm-list' },
           rows.length === 0
@@ -306,7 +439,7 @@ window.__ModuleLoader__.load({
                 h('span', { className: 'pm-k', style: { textAlign: 'right', minWidth: 30 } }, r.days + 'd'),
                 h('button', { className: 'pm-btn', onClick: () => setViewing(r) }, '查看'),
                 h('button', { className: 'pm-btn', onClick: () => setEditingItem(r.id) }, '改'),
-                h('button', { className: 'pm-btn', onClick: () => actItem('/del-item', { k: cur, id: r.id }) }, '删')))),
+                h('button', { className: 'pm-btn', onClick: () => actItem('/del-item', { k: cur, id: r.id }) }, '删')))))),
         viewing ? h('div', { className: 'pm-overlay', onClick: () => setViewing(null) },
           h('div', { className: 'pm-dialog', onClick: (e) => e.stopPropagation() },
             h('div', { className: 'pm-dialog-head' },
@@ -354,7 +487,18 @@ window.__ModuleLoader__.load({
           setHits(lines[0] === '没找到' ? [] : lines)
         } catch (e) { setMsg(String((e && e.message) || e)) }
       }
-      const pickScope = (id) => { setScope(id); setCur(''); setFolders([]); setRmWsArm('') }
+      const pickScope = async (id) => {
+        const one = scopes.find((x) => x.id === id)
+        if (one && one.pending && one.cwd) {
+          // 当前工作区还没建库：选中时先建，再切过去
+          try {
+            await postJson('/bind', { cwd: one.cwd }, 'global')
+            const sc = await get('/scopes')
+            setScopes(sc.scopes || [{ id: 'global', label: '全局' }])
+          } catch (e) { setMsg(String((e && e.message) || e)) }
+        }
+        setScope(id); setCur(''); setFolders([]); setRmWsArm('')
+      }
       const rmWs = async () => {
         if (!scope || scope === 'global') { setMsg('全局记忆库不能删'); return }
         const one = scopes.find((x) => x.id === scope)
@@ -379,37 +523,55 @@ window.__ModuleLoader__.load({
         if (!cwd) { setMsg('填个工作区路径'); return }
         try {
           const r = await postJson('/bind', { cwd })
-          if (r.ok) { setMsg('已建 ' + r.label + (r.folders ? '，默认 ' + r.folders + ' 个分区已建好' : '')); setWsCwd(''); setWsOpen(false); await loadFolders() }
-          else setMsg(r.error || '失败')
+          if (r.ok) {
+            setMsg('已建 ' + r.label + (r.folders ? '，默认 ' + r.folders + ' 个分区已建好' : ''))
+            setWsCwd(''); setWsOpen(false)
+            await loadScopes()
+            // 建完直接切过去，不然还停在原来那个库上，看着像没反应
+            if (r.id) { await pickScope(r.id); await loadFolders(r.id) }
+            else await loadFolders()
+          } else setMsg(r.error || '失败')
         } catch (e) { setMsg(String((e && e.message) || e)) }
       }
       return h('div', { className: 'pm-root' },
-        h('div', { style: { fontSize: 12, opacity: 0.62, lineHeight: '18px', margin: '2px 2px 8px' } },
+        h('div', { className: 'pm-hint' },
           '小提示：觉得有必要的时候，或者在开新会话之前，先让 DSH 把当前记忆总结一遍。'),
         h('div', { className: 'pm-card' },
           h('div', { className: 'pm-scope' },
-            h('span', { style: { opacity: .6 } }, '记忆库'),
+            h('span', { style: { fontSize: 11, opacity: .45, flex: '0 0 auto' } }, '记忆库'),
             h('select', {
-              className: 'pm-sel', value: scope,
+              className: 'pm-sel', value: scope, title: '切换记忆库',
               onChange: (e) => pickScope(e.target.value),
-            }, scopes.map((s) => h('option', { key: s.id, value: s.id }, s.cwd ? s.label + '（' + s.cwd + '）' : s.label))),
+            }, scopes.map((s) => h('option', { key: s.id, value: s.id, title: s.cwd || s.home || '' }, s.label))),
             h('input', {
-              className: 'pm-inp', placeholder: '搜记忆…', value: q, style: { flex: '1 1 160px', minWidth: 120 },
+              className: 'pm-inp', placeholder: '搜记忆…', value: q,
               onChange: (e) => setQ(e.target.value),
               onKeyDown: (e) => { if (e.key === 'Enter') doSearch(); if (e.key === 'Escape') { setQ(''); setHits(null) } },
             }),
             h('button', { className: 'pm-btn', onClick: doSearch }, '搜'),
-            h('button', { className: 'pm-btn', onClick: () => setWsOpen((v) => !v) }, '+ 工作区'),
+            h('button', { className: 'pm-btn', onClick: () => setWsOpen((v) => !v) }, wsOpen ? '取消' : '+ 工作区'),
             scope !== 'global' ? h('button', {
               className: 'pm-btn' + (rmWsArm === scope ? ' primary' : ''),
               onClick: rmWs,
-            }, rmWsArm === scope ? '真删？' : '删工作区') : null,
-            msg ? h('span', { style: { opacity: .55, fontSize: 11 } }, msg) : null)),
-        wsOpen ? h('div', { className: 'pm-form' },
-          h('select', { className: 'pm-sel', style: { flex: 1 }, value: wsCwd, onChange: (e) => setWsCwd(e.target.value) },
+            }, rmWsArm === scope ? '真删？' : '删工作区') : null),
+          (() => {
+            const one = scopes.find((x) => x.id === scope)
+            const line = one && one.cwd ? one.cwd : (one && one.home ? one.home : '')
+            // 这一行：左边是路径 / 提示，右边是「情绪推理」入口
+            return h('div', { className: 'pm-tools' },
+              line ? h('span', { style: { fontSize: 11, opacity: .38, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' } }, line) : null,
+              msg ? h('span', { style: { fontSize: 11, opacity: .55 } }, msg) : null,
+              h('span', { style: { marginLeft: 'auto', display: 'flex', alignItems: 'center' } },
+                h(EmoButton, { scope })))
+          })(),
+          wsOpen ? h('div', { className: 'pm-form' },
+            h('select', {
+              className: 'pm-sel', style: { flex: '1 1 240px' }, value: wsCwd,
+              onChange: (e) => setWsCwd(e.target.value),
+            },
             h('option', { value: '' }, '— 选一个 DSH 工作区 —'),
-            workspaces.map((w) => h('option', { key: w.id, value: w.path }, (w.bound ? '✓ ' : '') + w.title + '  ' + w.path))),
-          h('button', { className: 'pm-btn primary', onClick: addWs }, '建记忆库')) : null,
+            workspaces.map((w) => h('option', { key: w.id, value: w.path }, (w.bound ? '✓ ' : '') + w.title))),
+            h('button', { className: 'pm-btn primary', onClick: addWs }, '建记忆库')) : null),
         hits ? h('div', { className: 'pm-card' },
           h('div', { className: 'pm-head' },
             h('span', null, '搜索「' + q.trim() + '」'),
@@ -418,8 +580,7 @@ window.__ModuleLoader__.load({
             ? h('div', { className: 'pm-empty' }, '没有匹配的记忆')
             : h('div', { className: 'pm-list' }, hits.map((line, i) => h('div', { key: i, className: 'pm-row' }, h('span', { className: 'pm-t' }, line))))) : null,
         h(PendingBox, { scope, scopes, folders, onChanged: loadFolders }),
-        h('div', { style: { display: 'flex', minHeight: 260 } },
-          h(Browser, { scope, folders, cur, setCur, reload: () => loadFolders() })))
+        h(Browser, { scope, folders, cur, setCur, reload: () => loadFolders() }))
     }
 
     function Overlay({ onClose }) {
@@ -439,7 +600,7 @@ window.__ModuleLoader__.load({
         onClick: (e) => e.stopPropagation(),
         style: {
           background: 'var(--dsw-bg, #1d1f23)', color: 'var(--dsw-fg, #e8e8e8)',
-          borderRadius: 14, padding: 14, width: 'min(760px, 94vw)', maxHeight: '80vh',
+          borderRadius: 14, padding: '16px 18px', width: 'min(920px, 94vw)', maxHeight: '82vh',
           overflow: 'auto', border: '1px solid var(--dsw-border, #35373c)',
           boxShadow: '0 18px 50px rgba(0,0,0,.55)',
         },
@@ -502,7 +663,7 @@ window.__ModuleLoader__.load({
           body: JSON.stringify({ scope: 'global' }),
         }).catch(() => {})
       }
-      return h('div', { style: { maxWidth: 780, padding: '2px 0 12px' } },
+      return h('div', { style: { maxWidth: 880, padding: '2px 0 12px' } },
         h('div', { style: { marginBottom: 8, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 } },
           h('div', null,
             h('div', { style: { fontSize: 15, fontWeight: 600, marginBottom: 2 } }, '可塑性记忆'),

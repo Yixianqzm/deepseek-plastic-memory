@@ -167,6 +167,17 @@ function cmdApprove(args) {
   const i = p.findIndex(x => x.id === args[0])
   if (i < 0) return console.log('无此条')
   const it = p[i]
+  // 主分区当容器用：下面有子分区时不往里写（写了不进提示词、不进情绪语境）
+  const f = find(it.k)
+  if (!f) return console.log('无此分区：' + it.k)
+  if (!f.parent) {
+    const kids = S.folders.filter(x => x.parent === f.k)
+    if (kids.length) {
+      return console.log('不合法：「' + f.k + ' ' + f.name + '」是主分区，下面已经有 ' +
+        kids.length + ' 个子分区（' + kids.map(x => x.k + ' ' + x.name).join('、') +
+        '）。主分区只当容器，直接写进去不进提示词、不进情绪语境——改写到子分区再采纳。')
+    }
+  }
   commit(it.k, it)
   p.splice(i, 1)
   writePending(p)

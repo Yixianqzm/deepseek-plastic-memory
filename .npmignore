@@ -1,4 +1,5 @@
 *.bak
-.bak
+*.bak-*
 .DS_Store
 node_modules
+emotion-config.json
