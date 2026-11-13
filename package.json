@@ -1,6 +1,6 @@
 {
   "name": "deepseek-plastic-memory",
-  "version": "3.12.1",
+  "version": "3.13.0",
   "description": "DeepSeek 可塑性记忆：给 DSH 用的分区式长期记忆，带遗忘曲线",
   "type": "module",
   "main": "index.js",
@@ -20,6 +20,7 @@
     "SKILL.md",
     "README.md",
     "LICENSE",
+    "lib",
     "public",
     "sky.js",
     "identity.md"
@@ -48,5 +49,46 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/Yixianqzm/deepseek-plastic-memory.git"
+  },
+  "dshGo": {
+    "v": 1,
+    "title": {
+      "zh": "可塑性记忆",
+      "en": "Plastic Memory"
+    },
+    "icon": "bookmark",
+    "contributes": {
+      "composer.tools": [
+        {
+          "id": "open-memory",
+          "label": "记忆",
+          "icon": "bookmark",
+          "panel": "memory"
+        }
+      ],
+      "composer.strip": [
+        {
+          "id": "memory-stat",
+          "icon": "bookmark",
+          "panel": "memory"
+        }
+      ],
+      "panels": [
+        {
+          "id": "memory",
+          "title": {
+            "zh": "可塑性记忆",
+            "en": "Plastic Memory"
+          },
+          "icon": "bookmark",
+          "placement": [
+            "session.tab",
+            "features",
+            "chat.panel"
+          ],
+          "presentation": "sheet"
+        }
+      ]
+    }
   }
 }

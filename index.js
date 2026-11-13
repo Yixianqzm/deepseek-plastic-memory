@@ -8,6 +8,7 @@ import { dirname, join, basename } from 'node:path'
 import { readFileSync, existsSync, readdirSync, mkdirSync, writeFileSync, appendFileSync, renameSync, rmSync, statSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { registerSky } from './sky.js'
+import { registerDshGo } from './lib/dshgo.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SCRIPT = join(HERE, 'memtree.mjs')
@@ -1070,4 +1071,26 @@ export function apply(ctx) {
 
   // 记忆星空：内置在可塑性记忆里的一份 WebGL 页面
   registerSky(ctx, SKY_PUBLIC)
+
+  // DSH Go 原生界面：只有装了 dsh-go 桥接的主机（手机本机引擎）才会进来。
+  // 网页版、桌面版没有 dshGo 服务，这段直接跳过，一行都不影响。
+  try {
+    ctx.inject(['dshGo'], (c) => {
+      try {
+        registerDshGo(c, {
+          listScopes,
+          listFolders,
+          openFolder,
+          directAdd,
+          readPendingList,
+          homeOf,
+          scopeLabel,
+          runIn,
+        })
+      } catch (e) {
+        // 原生层出错不能连累整个插件
+        try { console.warn('[plastic-memory] dshGo 原生层注册失败：' + ((e && e.message) || e)) } catch {}
+      }
+    })
+  } catch {}
 }
