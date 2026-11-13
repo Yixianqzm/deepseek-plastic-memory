@@ -16,6 +16,45 @@ window.__ModuleLoader__.load({
       body: JSON.stringify(body || {}),
     }).then((r) => r.json())
 
+    // 手机 / 触屏：直接在 WebView 里打开星空页；桌面仍交给本机 Edge（多窗口、能全屏）
+    const skyUrl = (scope) => '/api/memory-sky/?scope=' + encodeURIComponent(scope || 'global')
+    const isTouchUI = () => {
+      const ua = navigator.userAgent || ''
+      if (/Android|iPhone|iPad|iPod|Mobile|HarmonyOS|Windows Phone/i.test(ua)) return true
+      if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return true
+      return window.innerWidth <= 760
+    }
+    // 手机上不开新窗口、也不跳走（会丢掉对话界面）：整页盖一层 iframe，右上角关掉就回来
+    const openSky = (scope) => {
+      if (!isTouchUI()) {
+        fetch('/api/memory-sky/open', {
+          method: 'POST', headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ scope: scope || 'global' }),
+        }).catch(() => {})
+        return
+      }
+      const id = 'pm-sky-frame'
+      const old = document.getElementById(id)
+      if (old) { old.remove(); return }
+      const box = document.createElement('div')
+      box.id = id
+      box.style.cssText = 'position:fixed;inset:0;z-index:10001;background:#03050c;display:flex;flex-direction:column'
+      const bar = document.createElement('div')
+      bar.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 12px;padding-top:calc(8px + env(safe-area-inset-top));font-size:13px;color:#dfe6ff;background:#080c16;border-bottom:1px solid rgba(126,156,255,.15)'
+      const name = document.createElement('span')
+      name.textContent = '记忆星空'
+      const close = document.createElement('button')
+      close.textContent = '关闭'
+      close.style.cssText = 'border:1px solid rgba(126,156,255,.3);background:transparent;color:#dfe6ff;border-radius:8px;padding:6px 14px;font-size:13px;cursor:pointer'
+      close.onclick = () => box.remove()
+      bar.appendChild(name); bar.appendChild(close)
+      const frame = document.createElement('iframe')
+      frame.src = skyUrl(scope || 'global')
+      frame.style.cssText = 'flex:1;width:100%;border:0;background:#03050c'
+      box.appendChild(bar); box.appendChild(frame)
+      document.body.appendChild(box)
+    }
+
     const CSS = `
       .pm-root { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 880px; margin: 0 auto; }
 
@@ -84,6 +123,19 @@ window.__ModuleLoader__.load({
       .pm-dialog-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 13px; font-weight: 600; }
       .pm-dialog-meta { font-size: 11px; opacity: .5; margin-bottom: 8px; }
       .pm-dialog-body { font-size: 13px; line-height: 21px; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; }
+
+      /* 手机 / 触屏：控件放大到手指能点，输入框 16px 防止 iOS 聚焦时整页放大 */
+      @media (max-width: 760px), (pointer: coarse) {
+        .pm-btn { font-size: 12.5px; padding: 7px 12px; min-height: 34px; }
+        .pm-sel, .pm-inp { font-size: 16px; min-height: 38px; }
+        .pm-row { padding: 9px 12px; font-size: 13.5px; }
+        .pm-tab { padding: 9px 10px; font-size: 13.5px; }
+        .pm-kids .pm-tab { font-size: 13px; }
+        .pm-head { padding: 10px 12px; }
+        .pm-hint { font-size: 12px; }
+        .pm-overlay { padding: 10px; align-items: flex-end; }
+        .pm-dialog { width: min(560px, 94vw); max-height: 76vh; }
+      }
     `
     function useCss() {
       React.useEffect(() => {
@@ -619,12 +671,6 @@ window.__ModuleLoader__.load({
       const [hover, setHover] = React.useState(false)
       const [hoverSky, setHoverSky] = React.useState(false)
       useCss()
-      const openSky = () => {
-        fetch('/api/memory-sky/open', {
-          method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ scope: 'global' }),
-        }).catch(() => {})
-      }
       const base = {
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         height: 24, padding: '0 8px', borderRadius: 6, cursor: 'pointer',
@@ -657,12 +703,6 @@ window.__ModuleLoader__.load({
     }
 
     function Panel() {
-      const openSky = () => {
-        fetch('/api/memory-sky/open', {
-          method: 'POST', headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ scope: 'global' }),
-        }).catch(() => {})
-      }
       return h('div', { style: { maxWidth: 880, padding: '2px 0 12px' } },
         h('div', { style: { marginBottom: 8, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 } },
           h('div', null,

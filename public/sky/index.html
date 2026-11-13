@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>记忆星空 · 可塑性记忆</title>
 <style>
   :root {
@@ -192,6 +192,55 @@
   #fallback p { color: var(--dim); font-size: 12.5px; margin: 0; }
   .fadein { animation: fadein .5s ease both; }
   @keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  /* ---------- 手机 / 触屏 ---------- */
+  #sky { touch-action: none; }
+  @media (max-width: 760px) {
+    body { font-size: 14px; }
+
+    #top {
+      top: calc(8px + env(safe-area-inset-top)); left: 8px; right: 8px;
+      width: auto; margin: 0; max-width: none;
+      flex-wrap: wrap; justify-content: flex-start; gap: 6px; padding: 8px; white-space: normal;
+    }
+    #top .brand { display: none; }
+    #search { flex: 1 1 100%; width: auto; font-size: 16px; padding: 9px 11px; }
+    #hitInfo { flex: 1 1 100%; font-size: 11px; }
+    #top .btn, #top select { font-size: 12.5px; padding: 8px 12px; min-height: 38px; border-radius: 10px; }
+
+    #themes { top: 132px; right: 8px; flex-direction: column; gap: 2px; padding: 4px; }
+    #themes .tbtn { padding: 7px 9px; font-size: 12px; }
+
+    #demo { display: none !important; }
+
+    #panel {
+      left: 8px; right: 8px; width: auto; top: auto;
+      bottom: calc(8px + env(safe-area-inset-bottom)); max-height: 46vh;
+    }
+    .star-item { padding: 9px 10px; font-size: 13.5px; }
+    .chip { padding: 4px 10px; font-size: 12px; }
+    textarea, input[type=text] { font-size: 16px; }
+
+    /* 遗忘曲线：平时缩成小圆，点开才展开 */
+    #curve {
+      left: auto; right: 8px; width: 46px; height: 46px; border-radius: 50%;
+      bottom: calc(46vh + 46px); transition: none;
+    }
+    #curve .chead { padding: 0; height: 46px; justify-content: center; }
+    #curve .chead .t, #curve .chead .n, #curve .cbody { display: none; }
+    #curve:not(.collapsed) { width: calc(100vw - 16px); height: auto; border-radius: 14px; }
+    #curve:not(.collapsed) .chead { padding: 8px 12px; height: auto; justify-content: space-between; }
+    #curve:not(.collapsed) .chead .t, #curve:not(.collapsed) .chead .n, #curve:not(.collapsed) .cbody { display: block; }
+
+    #peek {
+      left: 8px; right: 8px; width: auto; top: auto;
+      bottom: calc(46vh + 100px); max-height: 24vh; transform: translateY(8px);
+    }
+    #peek.show { transform: translateY(0); }
+
+    #ask { width: calc(100vw - 24px); padding: 16px; }
+    #hint { display: none; }
+    #toast { bottom: calc(46vh + 18px); font-size: 13px; }
+  }
 </style>
 </head>
 <body>

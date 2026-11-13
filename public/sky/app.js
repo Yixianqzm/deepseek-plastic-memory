@@ -1457,6 +1457,10 @@ function hitTest(clientX, clientY) {
 
 /* ---------------- 交互 ---------------- */
 function bindEvents() {
+  /* 触屏：两指捏合缩放 */
+  const pointers = new Map()
+  let pinch = null
+
   canvas.addEventListener('pointerleave', () => {
     if (state.theme === 'neuron') { neuroSetHover(-1, -1); neuroPeek(null) }
   })
@@ -1468,9 +1472,26 @@ function bindEvents() {
     moved = 0
     canvas.setPointerCapture(e.pointerId)
     canvas.classList.add('dragging')
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()]
+      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, dist: cam.dist }
+      drag = null
+      moved = 99
+    }
   })
 
   canvas.addEventListener('pointermove', (e) => {
+    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (pinch && pointers.size >= 2) {
+      const [a, b] = [...pointers.values()]
+      const d = Math.hypot(a.x - b.x, a.y - b.y)
+      if (d > 6 && pinch.d > 6) {
+        jump.active = false
+        cam.dist = clamp(pinch.dist * (pinch.d / d), 5, 220)
+      }
+      return
+    }
     if (state.theme === 'neuron' && !drag) {
       const hit = neuroPick(e.clientX, e.clientY)
       if (hit) {
@@ -1501,6 +1522,8 @@ function bindEvents() {
   })
 
   window.addEventListener('pointerup', (e) => {
+    pointers.delete(e.pointerId)
+    if (pointers.size < 2) pinch = null
     canvas.classList.remove('dragging')
     if (!drag) return
     const wasDrag = moved > 5
@@ -1545,6 +1568,16 @@ function bindEvents() {
     const k = Math.exp(clamp(e.deltaY, -160, 160) * 0.0016)
     cam.dist = clamp(cam.dist * k, 5, 220)
   }, { passive: false })
+
+  window.addEventListener('pointercancel', (e) => {
+    pointers.delete(e.pointerId)
+    if (pointers.size < 2) pinch = null
+    drag = null
+    canvas.classList.remove('dragging')
+  })
+
+  /* 手机上先把遗忘曲线收成小圆，别挡星空 */
+  if (window.matchMedia('(max-width: 760px)').matches && $('curve')) $('curve').classList.add('collapsed')
 
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
