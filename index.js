@@ -409,6 +409,17 @@ function readIdentity() {
 }
 
 export function apply(ctx) {
+  // 宿主服务缺失时（离线检查工具、被裁过的宿主）不要让整个插件崩掉
+  const safeWeb = (def) => {
+    try {
+      if (ctx.webServer && typeof ctx.webServer.register === 'function') ctx.webServer.register(def)
+    } catch {}
+  }
+  const safeTool = (def) => {
+    try {
+      if (ctx.tools && typeof ctx.tools.register === 'function') ctx.tools.register(def)
+    } catch {}
+  }
   // 每次新会话、每个模型步都会带上的一段：读到这些记忆，你就是原来那个它
   const identity = readIdentity()
   if (identity) {
@@ -516,7 +527,7 @@ export function apply(ctx) {
     }
   } catch {}
 
-  ctx.tools.register({
+  safeTool({
     name: 'plastic_memory_classify',
     description: 'AI 分类：action=dump 导出全部分区与每条记忆原文（JSON）；action=move 把一条记忆换区（要 id / from / to）；action=done 清掉「AI 分类」待办。用于主人点了 AI 分类之后的全量重归类：先 dump 全看一遍，再逐条 move，需要新分区先用 plastic_memory_mk 建。',
     parameters: obj({
@@ -538,21 +549,21 @@ export function apply(ctx) {
       return asText('action 只认 dump / move / done')
     },
   })
-  ctx.tools.register({
+  safeTool({
     name: 'plastic_memory_all',
     description: '可塑性记忆：一次性读出全部记忆（所有分区 + 待审），直接从这一份里找你需要的东西，不要再用 idx 挑分区。每次需要回忆主人信息/约定/上次聊到哪，都先调这个全量读一遍。不传 scope 就读全局；传 auto 则当前会话工作区有库就读它。返回开头会标出读的是哪个库。',
     parameters: obj({ scope: scopeArg }),
     output: textOutput,
     async execute(a) { return runTool(a, ['all']) },
   })
-  ctx.tools.register({
+  safeTool({
     name: 'plastic_memory_idx',
     description: '可塑性记忆：一行索引，只列分区和条数（想看结构时用）。要看内容请直接用 plastic_memory_all 全量读，不要靠 idx 挑分区。不传 scope 读全局，auto 读当前工作区。',
     parameters: obj({ scope: scopeArg }),
     output: textOutput,
     async execute(a) { return runTool(a, ['idx']) },
   })
-  ctx.tools.register({
+  safeTool({
     name: 'plastic_memory_open',
     description: '可塑性记忆：翻一个分区，返回条目。分区代号：M主人 P约定 C续缘 R喜好 T时间线 X<n>；子分区写成 M>行为。不传 scope 读全局，auto 读当前工作区。',
     parameters: obj({ folder: { ...str, description: '分区代号，如 M 或 M>行为' }, scope: scopeArg }, ['folder']),
@@ -864,7 +875,7 @@ export function apply(ctx) {
     }
   }
 
-  ctx.tools.register({
+  safeTool({
     name: 'plastic_memory_add',
     description: '可塑性记忆：把一条记忆放进待审批队列（主人会看到，能改能驳能采纳）。内容尽量精简（一两句就够，别写小作文），开头加 * 表示重要。时间线（T）会自动并进当天那一条，不会一条消息一条。看到主人的新习惯、情绪模式、口头禅、作息变化，主动记一条——不用等他说。但一轮最多一条、一天别超过五条，闲聊和重复的别记。写之前先想归哪个区：明显不属于现有的，先 plastic_memory_mk 开一个再 add；意思基本对得上就塞已有分区。禁止记密码、token、密钥。',
     parameters: obj({
@@ -879,7 +890,7 @@ export function apply(ctx) {
       return runTool(a, ['add', k, String(a.text)])
     },
   })
-  ctx.tools.register({
+  safeTool({
     name: 'plastic_memory_mk',
     description: '可塑性记忆：开一个新分区或子分区，比如在主人下面开「习惯」「兴趣」。不用等同一类事反复出现——第一次碰到明显不属于现有分区的东西（新兴趣、新项目、新认识的人、新的生活面向），就先自己开一个再写，别硬塞进时间线。但分区有上限（主分区 15 个）：能塞进意思对得上的已有分区，就别新开。',
     parameters: obj({
@@ -890,28 +901,28 @@ export function apply(ctx) {
     output: textOutput,
     async execute(a) { return runTool(a, ['mk', String(a.name), ...(a.parent ? [String(a.parent)] : [])]) },
   })
-  ctx.tools.register({
+  safeTool({
     name: 'plastic_memory_pending',
     description: '可塑性记忆：看待审批队列——主人还没采纳的记忆。',
     parameters: obj({ scope: scopeArg }),
     output: textOutput,
     async execute(a) { return runTool(a, ['pending']) },
   })
-  ctx.tools.register({
+  safeTool({
     name: 'plastic_memory_gc',
     description: '可塑性记忆：跑一次遗忘曲线——7 天保留、7~30 天压缩、30 天进回收站；主人和约定不删。跑之前会自动把当前记忆备份一份，跑完主人后悔了可以用 plastic_memory_restore 回到备份。',
     parameters: obj({ scope: scopeArg }),
     output: textOutput,
     async execute(a) { return runTool(a, ['gc']) },
   })
-  ctx.tools.register({
+  safeTool({
     name: 'plastic_memory_restore',
     description: '可塑性记忆：把记忆恢复到某次备份（不填名字就用最近一次）。恢复前会把当前状态也存一份，反悔还有退路。只有主人明确说要用备份/撤销清理时才调。',
     parameters: obj({ name: { ...str, description: '备份名字，不填=最近一次' }, scope: scopeArg }),
     output: textOutput,
     async execute(a) { return runTool(a, ['restore', ...(a.name ? [String(a.name)] : [])]) },
   })
-  ctx.tools.register({
+  safeTool({
     name: 'plastic_memory_rmfolder',
     description: '可塑性记忆：删掉一个分区（子分区会一起删）。内容不是直接消失，会先写进回收站文件，主人反悔还能翻。只有在主人明确说要删分区/删掉这个文件夹时才调。',
     parameters: obj({
@@ -926,7 +937,7 @@ export function apply(ctx) {
       return runTool(a, args)
     },
   })
-  ctx.tools.register({
+  safeTool({
     name: 'plastic_memory_rmws',
     description: '可塑性记忆：删掉一个工作区记忆库（整份记忆）。只会把工作区目录移到 ws/.deleted 下，不真正销毁文件。只有主人明确说要删工作区记忆库时才调。',
     parameters: obj({
@@ -946,7 +957,7 @@ export function apply(ctx) {
       return asText('已把 ' + id + ' 移到 ws/.deleted')
     },
   })
-  ctx.tools.register({
+  safeTool({
     name: 'plastic_memory_backups',
     description: '可塑性记忆：列出已有的备份（时间 + 条数），配合 plastic_memory_restore 用。',
     parameters: obj({ scope: scopeArg }),
@@ -970,7 +981,7 @@ export function apply(ctx) {
     req.on('error', () => finish({}))
     req.on('aborted', () => finish({}))
   })
-  ctx.webServer.register({
+  safeWeb({
     kind: 'prefix',
     path: '/api/plastic-memory',
     handler: async (req, res) => {
@@ -1070,7 +1081,11 @@ export function apply(ctx) {
   })
 
   // 记忆星空：内置在可塑性记忆里的一份 WebGL 页面
-  registerSky(ctx, SKY_PUBLIC)
+  try {
+    registerSky(ctx, SKY_PUBLIC)
+  } catch (e) {
+    try { console.warn('[plastic-memory] 记忆星空没挂上：' + ((e && e.message) || e)) } catch {}
+  }
 
   // DSH Go 原生界面：只有装了 dsh-go 桥接的主机（手机本机引擎）才会进来。
   // 网页版、桌面版没有 dshGo 服务，这段直接跳过，一行都不影响。
